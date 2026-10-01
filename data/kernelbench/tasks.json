@@ -1,0 +1,218 @@
+[
+  {
+    "task_id": "level1_p1_square_matmul",
+    "kernelbench_problem_id": 1,
+    "kernelbench_problem_name": "1_Square_matrix_multiplication_",
+    "level": 1,
+    "source": "ScalingIntelligence/KernelBench (HF), level_1 split, problem_id=1",
+    "metrics_note": "Task specs reference real KernelBench Level 1 problems (HF dataset ScalingIntelligence/KernelBench). Latency/speedup values are illustrative, reflecting patterns reported in KernelBench (Ouyang et al., ICML 2025) and Kevin (Baronio et al., 2025); they are NOT from live nvcc runs.",
+    "name": "KernelBench L1-P1: Square Matrix Multiplication (C = A @ B)",
+    "description": "Reference PyTorch op: C = A @ B for square matrices (N=2048). The LLM must emit a custom CUDA kernel; here we model the choice of tiling/block configuration.",
+    "pytorch_reference": "class Model(nn.Module):\n    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:\n        return torch.matmul(A, B)",
+    "input_shapes": {
+      "A": [
+        2048,
+        2048
+      ],
+      "B": [
+        2048,
+        2048
+      ]
+    },
+    "pytorch_baseline_latency_us": 142.5,
+    "candidates": [
+      {
+        "id": 0,
+        "name": "Tile 16x16 (Naive global loads)",
+        "category": "naive_global",
+        "code_snippet": "__global__ void matmul_naive(const float* A, const float* B, float* C, int N) {\n    int row = blockIdx.y*blockDim.y+threadIdx.y;\n    int col = blockIdx.x*blockDim.x+threadIdx.x;\n    if(row<N && col<N){ float s=0; for(int k=0;k<N;++k) s+=A[row*N+k]*B[k*N+col]; C[row*N+col]=s; }\n}",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 178.1,
+        "speedup": 0.8,
+        "reward": 0.0,
+        "status": "SLOWER (0.80x)",
+        "token_count": 82
+      },
+      {
+        "id": 1,
+        "name": "Tile 16x32 (Uncoalesced strided memory)",
+        "category": "uncoalesced",
+        "code_snippet": "// row-major indexing swapped -> uncoalesced global loads on B",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 156.6,
+        "speedup": 0.91,
+        "reward": 0.0,
+        "status": "SLOWER (0.91x)",
+        "token_count": 84
+      },
+      {
+        "id": 2,
+        "name": "Tile 64x64 (Register pressure spill)",
+        "category": "register_spill",
+        "code_snippet": "__shared__ float sA[64][64], sB[64][64]; float accum[8][8]={0}; // spills to local mem",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 192.5,
+        "speedup": 0.74,
+        "reward": 0.0,
+        "status": "SLOWER (0.74x)",
+        "token_count": 145
+      },
+      {
+        "id": 3,
+        "name": "Tile 32x32 + SharedMem + Coalesced",
+        "category": "optimal_tiled",
+        "code_snippet": "#define T 32\n__global__ void matmul_tiled(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int N){\n  __shared__ float sA[T][T], sB[T][T];\n  int ty=threadIdx.y, tx=threadIdx.x;\n  int row=blockIdx.y*T+ty, col=blockIdx.x*T+tx; float s=0;\n  for(int t=0;t<N/T;++t){ sA[ty][tx]=A[row*N+t*T+tx]; sB[ty][tx]=B[(t*T+ty)*N+col]; __syncthreads();\n    #pragma unroll\n    for(int k=0;k<T;++k) s+=sA[ty][k]*sB[k][tx]; __syncthreads(); }\n  C[row*N+col]=s;\n}",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 60.8,
+        "speedup": 2.34,
+        "reward": 1.0,
+        "status": "FAST_P OPTIMAL (2.34x speedup)",
+        "token_count": 218
+      },
+      {
+        "id": 4,
+        "name": "Tile 8x8 (Low occupancy under-utilization)",
+        "category": "under_occupancy",
+        "code_snippet": "#define T 8 // 64 threads/block under-utilizes SM warp schedulers",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 268.8,
+        "speedup": 0.53,
+        "reward": 0.0,
+        "status": "SLOWER (0.53x)",
+        "token_count": 78
+      },
+      {
+        "id": 5,
+        "name": "Tile 32x16 (Shared memory bank conflicts)",
+        "category": "bank_conflicts",
+        "code_snippet": "__shared__ float sA[32][16]; // 2-way bank conflicts on warp column reads",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 151.6,
+        "speedup": 0.94,
+        "reward": 0.0,
+        "status": "SLOWER (0.94x)",
+        "token_count": 96
+      },
+      {
+        "id": 6,
+        "name": "Tile 128x128 (Shared mem capacity overflow)",
+        "category": "compile_error",
+        "code_snippet": "__shared__ float sA[128][128], sB[128][128]; // exceeds 48KB smem limit -> ptxas error",
+        "compiles": false,
+        "numerically_correct": false,
+        "latency_us": 0.0,
+        "speedup": 0.0,
+        "reward": 0.0,
+        "status": "COMPILE_ERROR",
+        "token_count": 65
+      },
+      {
+        "id": 7,
+        "name": "Tile 16x16 + Non-atomic accum (race)",
+        "category": "accuracy_mismatch",
+        "code_snippet": "C[row*N+col]+=A[row*N+threadIdx.x]*B[threadIdx.x*N+col]; // data race, wrong result",
+        "compiles": true,
+        "numerically_correct": false,
+        "latency_us": 55.0,
+        "speedup": 2.59,
+        "reward": 0.0,
+        "status": "ACCURACY_MISMATCH",
+        "token_count": 72
+      }
+    ]
+  },
+  {
+    "task_id": "level1_p23_softmax",
+    "kernelbench_problem_id": 23,
+    "kernelbench_problem_name": "23_Softmax",
+    "level": 1,
+    "source": "ScalingIntelligence/KernelBench (HF), level_1 split, problem_id=23",
+    "metrics_note": "Task specs reference real KernelBench Level 1 problems (HF dataset ScalingIntelligence/KernelBench). Latency/speedup values are illustrative, reflecting patterns reported in KernelBench (Ouyang et al., ICML 2025) and Kevin (Baronio et al., 2025); they are NOT from live nvcc runs.",
+    "name": "KernelBench L1-P23: Softmax over last dimension",
+    "description": "Reference PyTorch op: torch.softmax(x, dim=-1). The LLM must emit a numerically-stable CUDA softmax kernel.",
+    "pytorch_reference": "class Model(nn.Module):\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return torch.softmax(x, dim=-1)",
+    "input_shapes": {
+      "x": [
+        16,
+        16384
+      ]
+    },
+    "pytorch_baseline_latency_us": 85.2,
+    "candidates": [
+      {
+        "id": 0,
+        "name": "3-Pass Global Memory Softmax (max, sum, div)",
+        "category": "multi_pass",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 115.0,
+        "speedup": 0.74,
+        "reward": 0.0,
+        "status": "SLOWER (0.74x)",
+        "token_count": 92
+      },
+      {
+        "id": 1,
+        "name": "Online 1-Pass Softmax + Warp Shuffle Reduction",
+        "category": "warp_shuffle_optimal",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 32.1,
+        "speedup": 2.65,
+        "reward": 1.0,
+        "status": "FAST_P OPTIMAL (2.65x speedup)",
+        "token_count": 195
+      }
+    ]
+  },
+  {
+    "task_id": "level1_p40_layernorm",
+    "kernelbench_problem_id": 40,
+    "kernelbench_problem_name": "40_LayerNorm",
+    "level": 1,
+    "source": "ScalingIntelligence/KernelBench (HF), level_1 split, problem_id=40",
+    "metrics_note": "Task specs reference real KernelBench Level 1 problems (HF dataset ScalingIntelligence/KernelBench). Latency/speedup values are illustrative, reflecting patterns reported in KernelBench (Ouyang et al., ICML 2025) and Kevin (Baronio et al., 2025); they are NOT from live nvcc runs.",
+    "name": "KernelBench L1-P40: Layer Normalization",
+    "description": "Reference PyTorch op: nn.LayerNorm over the feature dimension. The LLM must emit a fused CUDA LayerNorm kernel.",
+    "pytorch_reference": "class Model(nn.Module):\n    def __init__(self, normalized_shape):\n        super().__init__()\n        self.ln = nn.LayerNorm(normalized_shape)\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.ln(x)",
+    "input_shapes": {
+      "x": [
+        128,
+        4096
+      ]
+    },
+    "pytorch_baseline_latency_us": 96.0,
+    "candidates": [
+      {
+        "id": 0,
+        "name": "Two-Pass Global (mean, then normalize)",
+        "category": "multi_pass",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 121.3,
+        "speedup": 0.79,
+        "reward": 0.0,
+        "status": "SLOWER (0.79x)",
+        "token_count": 88
+      },
+      {
+        "id": 1,
+        "name": "Fused Welford + Warp-Reduce LayerNorm",
+        "category": "fused_welford_optimal",
+        "compiles": true,
+        "numerically_correct": true,
+        "latency_us": 41.7,
+        "speedup": 2.3,
+        "reward": 1.0,
+        "status": "FAST_P OPTIMAL (2.30x speedup)",
+        "token_count": 176
+      }
+    ]
+  }
+]
