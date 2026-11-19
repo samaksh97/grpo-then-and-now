@@ -1,0 +1,8 @@
+# Tooling to execute the notebooks headlessly and run the test suite: `make test`.
+-r requirements.txt
+nbformat==5.11.1
+nbclient==0.11.0
+ipykernel==7.4.0
+pytest==9.0.3
+pillow==12.3.0  # figures/import_figure_set.py
+beautifulsoup4==4.14.2  # tests/test_decks.py

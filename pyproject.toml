@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grpo-lab"
+version = "1.0.0"
+description = "NumPy toys behind 'GRPO, Then and Now' (NeurIPS 2026 Education Track)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = ["numpy", "matplotlib"]
+
+[tool.setuptools]
+packages = ["grpo_lab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

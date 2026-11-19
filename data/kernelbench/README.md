@@ -46,5 +46,5 @@ against the PyTorch reference, and benchmarks runtime with `torch.cuda.Event` to
 `fast_p` speedup metric — the exact verifiable reward this tutorial models.
 
 ## Citations
-- Ouyang, Guo, Arora, Zhang, Hu, Ré, Mirhoseini. *KernelBench: Can LLMs Write Efficient GPU Kernels?* ICML 2025.
-- Baronio, Marsella, Pan, Guo, Alberti. *Kevin: Multi-Turn RL for Generating CUDA Kernels.* arXiv:2507.11948, 2025.
+- Ouyang, Guo, Arora, Zhang, Hu, Ré, Mirhoseini. [*KernelBench: Can LLMs Write Efficient GPU Kernels?*](https://proceedings.mlr.press/v267/ouyang25a.html) ICML 2025.
+- Baronio, Marsella, Pan, Guo, Alberti. [*Kevin: Multi-Turn RL for Generating CUDA Kernels.*](https://arxiv.org/abs/2507.11948) arXiv:2507.11948, 2025.

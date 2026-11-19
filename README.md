@@ -1,121 +1,161 @@
-# Breaking GRPO: An Interactive Failure Lab for Reinforcement Learning with Verifiable Rewards
+# GRPO, Then and Now: An Interactive Guide to Modern Reasoning RL
 
-**NeurIPS 2026 Education Track Submission**
+**NeurIPS 2026 Education Track** · Samaksh Gulati and Rachel Shalom
 
-## The Concept Taught
+[Decks and handouts online](https://samaksh97.github.io/grpo-then-and-now/) ·
+[Open the core notebook in Colab](https://colab.research.google.com/github/samaksh97/grpo-then-and-now/blob/main/notebook/01_grpo_core.ipynb) ·
+[Source on GitHub](https://github.com/samaksh97/grpo-then-and-now) ·
+[Poster (PDF)](poster/grpo_then_and_now_poster.pdf) · code Apache-2.0, content CC BY 4.0
 
-> **GRPO's structural failure modes, and the 2025 successor design space they produced (DAPO, DisCO, S-GRPO).**
+## Overview
 
-This is an *emerging* concept, not an established one. Group Relative Policy Optimization was introduced in DeepSeekMath (Shao et al., 2024), scaled by DeepSeek-R1 (2025), and is now the default algorithm for reinforcement learning with verifiable rewards. Within a year its documented failure modes had motivated **three NeurIPS 2025 papers**.
+This resource teaches how Group Relative Policy Optimization (GRPO) works, where its learning signal
+fails, and how DAPO, DisCO and S-GRPO address those limitations. GRPO was introduced in DeepSeekMath and
+brought to broad attention by DeepSeek-R1. It is used in the RL stages of DeepSeek-V3 and DeepSeek-R1 and
+in Qwen3's reasoning RL, and TRL, verl and OpenRLHF all implement it, so many practitioners start from its
+design choices.
 
-Most tutorials teach *how* GRPO works. This one teaches *when it breaks and why the field moved on.* The single takeaway:
+Slide decks build intuition first: one claim and one curated figure per slide, with the derivations in
+collapsible drawers. CPU-only notebooks then let learners compute each quantity by hand, trigger
+controlled failures, test the fixes and complete exercises, using KernelBench-framed examples.
 
-> *GRPO learns only when its samples contain informative contrasts — and fails when the group or the verifier provides none.*
+![Design-space map: each GRPO component, the failure it causes, and the method that changes it](figures/set/F13_design_space_map.png)
 
-Learners **trigger each failure with a slider**, then implement the corresponding fix and watch it disappear. The lab is framed on **KernelBench** GPU-kernel tasks (Ouyang et al., ICML 2025), a canonical verifiable-reward setting, but runs entirely on a laptop CPU.
+DAPO changes sampling, clipping, aggregation and truncation; DisCO redesigns the objective; S-GRPO targets
+overthinking with serial exits. The map also places later revisions of the same components, such as
+Dr. GRPO, GSPO, CISPO and adaptive clipping (GRPO deck `slides/grpo_intro.html#response-map`,
+`02_failure_lab.ipynb` Appendix D).
 
-```
-Sec 1     PREREQUISITE SCAFFOLDING (~10 min) — SFT, policy gradients, PPO's 4 models, GRPO's 2
-Sec 2-4   Build GRPO from scratch on KernelBench-framed micro-environments
-Sec 5     >>> THE FAILURE LAB — the core of the tutorial <<<
-Sec 6-7   The successors: DAPO implemented, DisCO & S-GRPO as frontier cards
-Sec 8-10  When to use GRPO, exercises, references
-```
+## Choose a path
 
-**Note on Section 1.** SFT, policy gradients and PPO are well-established material, covered *only* as fast scaffolding so the failure analysis is legible without an RL background. It is not the contribution — skip it if you already know PPO.
+Read the deck, then run the matching notebook. Each deck's last slide points to the next step.
 
-## The Failure-to-Successor Map
+| Time / goal | Slides | Notebooks | What you will learn |
+|---|---|---|---|
+| 15-minute orientation | [`grpo_intro.html`](slides/grpo_intro.html) | — | GRPO's group baseline, three failure modes, and the map of later fixes |
+| **50-minute core path** | [`grpo_intro.html`](slides/grpo_intro.html) | [`01_grpo_core`](notebook/01_grpo_core.ipynb) → [`02_failure_lab`](notebook/02_failure_lab.ipynb) §1–4 → [`03_exercises`](notebook/03_exercises.ipynb) (Exercises 1 and 6) | Compute group-relative advantages, write a GRPO update, break it three ways, and apply DAPO's fixes |
+| New to RL: add 20 minutes first | the deck's two refresher slides (`#policy-gradient`, `#ppo-refresher`) | [`00_pg_ppo_refresher`](notebook/00_pg_ppo_refresher.ipynb) | When RL with verifiable rewards beats SFT, policy gradients, baselines, PPO |
+| DAPO deep dive | [`dapo_intro.html`](slides/dapo_intro.html) | [`dapo_four_fixes`](notebook/dapo_four_fixes.ipynb) | Clip-Higher, Dynamic Sampling, token-level loss, overlong reward shaping |
+| DisCO deep dive | [`disco_intro.html`](slides/disco_intro.html) | [`disco_three_fixes`](notebook/disco_three_fixes.ipynb) | Difficulty bias, non-clipping scores with a KL constraint, hard negatives |
+| S-GRPO deep dive | [`sgrpo_intro.html`](slides/sgrpo_intro.html) | [`sgrpo_early_exit`](notebook/sgrpo_early_exit.ipynb) | Serial groups, decaying rewards, learning when to stop reasoning |
+| Compare the methods | — | [`04_method_testbed`](notebook/04_method_testbed.ipynb) | GRPO, DAPO, Dr. GRPO, GSPO and CISPO as settings of one objective, run on the same seed, mapped to TRL / verl / OpenRLHF options |
 
-| # | GRPO Failure | Architectural Level | Notebook Experiment | Successor Fix (DAPO, NeurIPS 2025) |
-|---|-------------|---------------------|-------------------|-----------------------------------|
-| **1** | All rollouts agree ($\sigma=0$) $\to$ zero gradient | Macro (Group) | Adjust task difficulty, group size; observe zero-gradient groups | **Dynamic Sampling**: filter uninformative groups |
-| **2** | Policy entropy collapses, exploration dies | Micro (Token Clipping) | Walk through 1-step asymmetry, adjust clipping bounds; observe entropy curves | **Clip-Higher**: decouple bounds ($\epsilon_{\text{high}} > \epsilon_{\text{low}}$) |
-| **3** | Sample-level averaging creates length bias | Structural (Sequence) | Compare short vs. long responses with identical rewards | **Token-Level Loss**: aggregate across all tokens equally |
-| **4** | Abrupt length truncation causes reward cliffs | Structural (Sequence) | Simulate variable-length reasoning; observe reward noise | **Overlong Reward Shaping**: soft linear decay |
-| *bonus* | Reward hacking & Credit assignment limits | Systemic (Verifier & Outcome) | Flawed verifier shortcut & sparse outcome credit assignment | Adversarial test harnesses & Process Reward Models (PRMs) |
+## Run it
 
-## Structure
+**Notebooks.** Every notebook has an *Open in Colab* badge; its first cell fetches this repository when
+run outside it. To run locally (Python 3.10+):
 
-```
-grpo_failure_lab/
-├── README.md                    # this file
-├── GRPO_PRIMER.md               # plain-language study notes (optional pre-reading)
-├── SUBMISSION.md                # track compliance checklist (2026 Education Track)
-├── concept_summary.tex          # 2-page track submission ([education, final] template)
-├── concept_summary_full.tex     # extended write-up (NOT the submission; for repo/arXiv)
-├── concept_summary.pdf          # compiled 2-page concept summary
-├── make_submission_zip.sh       # builds the OpenReview submission ZIP
-├── data/
-│   └── kernelbench/
-│       ├── tasks.json           # real KernelBench L1 problem specs + illustrative metrics
-│       └── README.md            # data provenance & honest scope
-├── solutions/
-│   └── exercise_solutions.py    # standalone tested solutions for Exercises 1-6
-├── notebook/
-│   └── grpo_failure_lab.ipynb   # core interactive tutorial (65 cells, ~50-60 min)
-└── figures/                     # 15 plots generated by the notebook
+```bash
+python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt jupyterlab
+.venv/bin/jupyter lab notebook/
 ```
 
-The companion [`notebook/dapo_four_fixes.ipynb`](notebook/dapo_four_fixes.ipynb)
-develops DAPO's four improvements in one notebook. Its Clip-Higher section is
-currently complete; Dynamic Sampling, Token-Level Loss, and Overlong Reward
-Shaping will follow in the same notebook.
+| Notebook | Content | Reading time | Runtime |
+|---|---|---|---|
+| `00_pg_ppo_refresher` | Optional: SFT vs RLVR, the KernelBench running example, policy gradients, baselines, PPO, what GRPO removes | 20 min | 2 s |
+| `01_grpo_core` | Group-relative advantages by hand, a 20-line Bandit-GRPO update, the clipped objective on token sequences | 30 min | 3 s |
+| `02_failure_lab` | Zero-gradient groups, the upper clip on rare tokens, length-dependent token weights, DAPO's responses; appendices on reward hacking, DisCO, S-GRPO and Dr. GRPO | 40 min | 15 s |
+| `03_exercises` | Six exercises; reference solutions in `solutions/exercise_solutions.py` | 15–45 min | 1 s |
+| `04_method_testbed` | Every method as a configuration of one objective: presets, a method diff, same-seed runs, and each flag's TRL / verl / OpenRLHF option | 25 min | 6 s |
+| `dapo_four_fixes` | Each of DAPO's four techniques with its own experiment | 45 min | 3 s |
+| `disco_three_fixes` | DisCO's three fixes and a complete one-question DisCO loop | 45 min | 3 s |
+| `sgrpo_early_exit` | S-GRPO's serial group and decaying reward, and a toy exit policy | 20 min | 2 s |
 
-## Notebook Outline (~50-60 min)
+All code cells are short; the toy environments, objectives and plots live in the small NumPy package
+[`grpo_lab/`](grpo_lab/), whose docstrings cite the paper equations they implement.
 
-### Part I: Why RL and How GRPO Works
-- **Section 1.1**: What is Supervised Fine-Tuning (SFT) and its three fundamental limitations (imitation ceiling, rigid token-level supervision vs. equifinality, distribution shift)
-- **Section 1.2**: The RL loop and in-depth breakdown of KernelBench (agent, environment, state, action, `nvcc` + numerical verifier, $\text{fast}_p$ speedup reward, policy gradient, value, advantage)
-- **Section 1.3**: The full 4-model PPO architecture ($\pi_\theta, \pi_{\text{ref}}, R_\phi, V_\psi$) and 5-step training loop
-- **Section 1.4**: GRPO's 2-model simplification (deterministic verifier + group mean baseline; 75% VRAM savings)
-- **Section 1.5**: Baseline variance reduction (REINFORCE vs. group baseline)
-- **Section 2**: Setup — KernelBench task specifications (real Level-1 problem IDs; illustrative metrics, see `data/kernelbench/README.md`) & CPU-friendly micro-environments (Micro-Bandit Level A & Micro-Sequence Level B)
-- **Section 3**: GRPO by hand (compute advantages on KernelBench candidate kernels, implement Bandit-GRPO in ~30 lines)
-- **Section 4**: Full Sequence-GRPO objective with autoregressive ratios, clipping, and KL regularization
+**Slides.** The decks in the release ZIP and on the website are single self-contained files (math library,
+shared code and figures embedded), so each opens offline on its own. In this repository they load
+`slides/vendor/katex/`, `slides/assets/` and `figures/set/` by relative path. Keys: Space/→ next, ← back,
+T light/dark; every slide has a stable link such as `slides/dapo_intro.html#clip-higher`. PDF handouts
+(one page per slide, all steps revealed) are in [`slides/handouts/`](slides/handouts/).
 
-### Part II: The Failure Lab (The Heart)
-- **Section 5.1**: Failure Mode 1 — Zero-gradient groups (macro bottleneck; interactive success rate $\times$ group size sliders)
-- **Section 5.2**: Failure Mode 2 — Entropy collapse (micro token-level bottleneck; 1-step walkthrough & clipping sliders)
-- **Section 5.3**: Failure Mode 3 — Length bias from sample-level averaging (structural sequence bottleneck; short vs. long response sliders)
-- **Bonus**: Systemic challenges (Reward hacking with flawed verifier & Credit assignment with outcome rewards)
+## Figures
 
-### Part III: How Frontier Methods Respond
-- **Section 6**: DAPO capstone — implement Dynamic Sampling, Clip-Higher, and Token-Level Loss in a unified step function; re-run all 3 failure experiments side-by-side
-- **Section 6.4**: Overlong Reward Shaping demonstration — soft length penalties eliminating truncation cliffs
-- **Section 7**: Frontier cards — DisCO (discriminative constrained optimization) and S-GRPO (serial early exit)
-- **Section 7.5**: Independent validation at scale (DAPO, KernelBench, Kevin)
+The curated figure set ([`figures/set/`](figures/set/), alt text and sources in
+[`figures.json`](figures/set/figures.json)) is used in both the decks and the notebooks.
 
-### Part IV: Practice
-- **Section 8**: When to use GRPO (readiness checklist, task suitability)
-- **Section 9**: 6 exercises with collapsible solutions (analytical advantage calculation, group-size scaling, Dynamic Sampling implementation, Clip-Higher tuning, verifier defense design, diagnostic matching)
-- **Section 10**: Complete references & bibliography (Williams 1992, PPO 2017, DeepSeekMath 2024, DeepSeek-R1 2025, DAPO 2025, DisCO 2025, S-GRPO 2025, KernelBench 2025, Kevin 2025)
+| | Figure | | Figure |
+|---|---|---|---|
+| F1 | One GRPO step | F8 | Overlong reward shaping |
+| F2 | PPO-RLHF (four model roles) vs GRPO with RLVR (two) | F9 | Dynamic Sampling over a run |
+| F3 | Group-relative advantages | F10 | The clipped objective |
+| F4 | Informative groups vs accuracy | F11 | DisCO's hard-negative weighting |
+| F5 | Clip headroom | F12 | S-GRPO's serial group |
+| F6 | Per-token weight vs response length | F13 | Design-space map |
+| F7 | Per-question weight vs difficulty | F14 | Reported results: DAPO ablation; DisCO and S-GRPO |
 
-## Requirements
+## What is where
 
-- Python 3.9+
-- NumPy
-- Matplotlib
-- ipywidgets (optional, for interactive sliders; static fallbacks included)
+| Path | Purpose |
+|---|---|
+| [`notebook/`](notebook/) | The eight notebooks, with saved outputs |
+| [`grpo_lab/`](grpo_lab/) | Environments, objectives, experiment runners and plots used by the notebooks |
+| [`slides/`](slides/) | The four decks, shared deck code (`assets/`), KaTeX (`vendor/`), PDF handouts, and the build scripts |
+| [`figures/`](figures/) | The curated figure set and its importer; two refresher diagrams drawn by `generate_primer_diagrams.py` |
+| [`solutions/`](solutions/) | Reference solutions for the six exercises |
+| [`INSTRUCTOR_NOTES.md`](INSTRUCTOR_NOTES.md) | Session plans, common misconceptions and activities per topic, assessment ideas |
+| [`poster/`](poster/) | The NeurIPS poster (61 × 85 cm portrait PDF, plus the PNGs for neurips.cc) and its source; `make poster` rebuilds it |
+| [`data/kernelbench/`](data/kernelbench/) | Real KernelBench task metadata with illustrative metrics, provenance and GPU reproduction notes |
+| [`tests/`](tests/), [`tools/`](tools/) | Tests (`make test`) and maintenance scripts (notebook runner, figure embedding, site build, browser check) |
+| [`concept_summary.pdf`](concept_summary.pdf) | The two-page submission overview |
 
-No GPU, no LLM API keys, no heavy dependencies. Everything runs locally on a standard laptop CPU in milliseconds.
+## For maintainers
 
-## Key Differentiation
+```bash
+make setup        # .venv with pinned dependencies and test tooling
+make test         # unit tests, a headless run of every notebook, deck and link checks
+make figures FIGSET="path/to/export.zip"   # import a new figure export and re-embed it in the notebooks
+make handouts     # PDF handouts (needs Chrome, Chromium or Edge)
+make poster       # the 61 x 85 cm poster PDF and the neurips.cc PNGs (needs Chrome, Chromium or Edge)
+make zip          # the submission ZIP (needs an up-to-date concept_summary.pdf)
+```
 
-Existing GRPO tutorials (HuggingFace, DeepLearning.AI, community blogs) teach *how* GRPO works. None provide a **systematic failure taxonomy mapped to NeurIPS 2025 successors**. This tutorial serves as the conceptual bridge from "GRPO basics" to understanding why DAPO, DisCO, and S-GRPO exist and how to diagnose failure modes in production.
+`tools/check_decks_browser.py` opens every deck in Chromium, Firefox and WebKit (Playwright) from
+`file://` and from a local server; CI runs it, the tests, and publishes the website
+(`.github/workflows/ci.yml`). `tools/publish_github.sh` prepares the public snapshot commit.
 
-## Prerequisites
+## Requirements and prerequisites
 
-- Basic probability and statistics (mean, variance, softmax)
-- Basic calculus (gradients, log-probabilities)
-- Familiarity with autoregressive token sampling
-- **No prior RL knowledge assumed**
+NumPy and Matplotlib (pinned in `requirements.txt`); ipywidgets is optional for the slider cells. No GPU,
+model weights or API keys. Learners need basic probability and statistics, basic calculus, familiarity with
+autoregressive token sampling, and basic reinforcement learning (policies, rewards, policy gradients, PPO);
+the refresher covers the last item.
+
+## Limitations
+
+- **Toy mechanisms, not LLM-scale results.** The notebooks isolate each mechanism on CPU
+  micro-environments; large-scale effects are cited from the papers, not reproduced. KernelBench task
+  specifications are real, but per-kernel metrics are illustrative.
+- **Not yet evaluated with learners.** The materials have not been used in a classroom or studied with
+  learners. Feedback from instructors and self-learners is welcome.
+- **A fast-moving field.** The method coverage reflects work up to October 2026; newer revisions of GRPO
+  will need to be added to the map over time.
+
+## License
+
+Code is licensed under Apache-2.0 ([`LICENSE`](LICENSE)); the slides, handouts, figures and the
+prose of the notebooks and documentation under CC BY 4.0. Details and attribution:
+[`LICENSE-CONTENT.md`](LICENSE-CONTENT.md).
 
 ## References
 
-1. DeepSeekMath (Shao et al., 2024) — introduces GRPO
-2. DeepSeek-R1 (DeepSeek-AI, 2025) — scales GRPO to reasoning
-3. DAPO (Yu et al., NeurIPS 2025) — four fixes for GRPO
-4. DisCO (Zhang et al., NeurIPS 2025) — discriminative constrained optimization
-5. S-GRPO (Zheng et al., NeurIPS 2025) — serial group with early exit
-6. KernelBench (Ouyang et al., ICML 2025) — GPU kernel generation benchmark
-7. Kevin (Baronio et al., 2025) — multi-turn RL for CUDA kernels
+1. [DeepSeekMath](https://arxiv.org/abs/2402.03300) (Shao et al., 2024) — introduces GRPO
+2. [DeepSeek-R1](https://arxiv.org/abs/2501.12948) (DeepSeek-AI, 2025) — uses GRPO in large-scale reasoning RL
+3. [DeepSeek-V3](https://arxiv.org/abs/2412.19437) (DeepSeek-AI, 2024) — uses GRPO in its RL stage (Sec. 5.2.2)
+4. [Qwen3](https://arxiv.org/abs/2505.09388) (Qwen Team, 2025) — uses GRPO for reasoning RL (Sec. 4.2)
+5. [DAPO](https://proceedings.neurips.cc/paper_files/paper/2025/hash/a4277440d50f1f15d2cb4c14f7e0c0d2-Abstract-Conference.html) (Yu et al., NeurIPS 2025) — four techniques for stable long-CoT GRPO training
+6. [DisCO](https://proceedings.neurips.cc/paper_files/paper/2025/hash/52d6c85793b3dd47636eb430710da915-Abstract-Conference.html) (Li et al., NeurIPS 2025) — discriminative constrained optimization
+7. [S-GRPO](https://proceedings.neurips.cc/paper_files/paper/2025/hash/44f09d1973a88529b40029e6c3693ded-Abstract-Conference.html) (Dai et al., NeurIPS 2025) — serial groups with early exit
+8. [KernelBench](https://proceedings.mlr.press/v267/ouyang25a.html) (Ouyang et al., ICML 2025) — GPU-kernel generation benchmark
+9. [Kevin](https://arxiv.org/abs/2507.11948) (Baronio et al., 2025) — multi-turn GRPO for CUDA kernels
+10. [PPO](https://arxiv.org/abs/1707.06347) (Schulman et al., 2017) — the clipped objective GRPO builds on
+
+Later revisions placed on the map (GRPO deck `#response-map`, `02_failure_lab.ipynb` Appendix D):
+
+11. [Dr. GRPO](https://arxiv.org/abs/2503.20783) (Liu et al., 2025) — removes GRPO's length and std normalization
+12. [GSPO](https://arxiv.org/abs/2507.18071) (Zheng et al., 2025) — sequence-level importance ratios and clipping
+13. [CISPO / MiniMax-M1](https://arxiv.org/abs/2506.13585) (MiniMax, 2025) — clips importance-sampling weights instead of token updates
+14. [DCPO](https://arxiv.org/abs/2509.02333) (Yang et al., 2025) — clip bounds adapted to each token's prior probability
+15. [BAPO](https://arxiv.org/abs/2510.18927) (Xi et al., ICLR 2026) — adaptive clipping that rebalances positive and negative contributions
+16. [Clip-Cov / KL-Cov](https://arxiv.org/abs/2505.22617) (Cui et al., 2025) — entropy control via high-covariance tokens

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+
+  browsers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install playwright==1.55.0
+      - run: python -m playwright install --with-deps chromium firefox webkit
+      - run: python slides/build_standalone.py build/slides
+      - run: python tools/check_decks_browser.py build/slides chromium firefox webkit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deck-screenshots
+          path: build/slides/shots
+
+  pages:
+    if: github.ref == 'refs/heads/main'
+    needs: [test, browsers]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tools/build_site.py build/site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+      - id: deploy
+        uses: actions/deploy-pages@v4

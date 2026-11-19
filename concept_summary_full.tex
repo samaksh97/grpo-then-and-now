@@ -2,7 +2,7 @@
 % NeurIPS 2026 Education Track is SINGLE-BLIND: author names must be included.
 % (Track guidance asks for the "education, final" template; using final/preprint mode here
 %  so author identity is rendered as required.)
-\usepackage[final]{neurips_2026}
+\usepackage[education, final]{neurips_2026}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{hyperref}
@@ -28,28 +28,28 @@
 \maketitle
 
 \begin{abstract}
-Group Relative Policy Optimization (GRPO) powers the reasoning capabilities of DeepSeek-R1 and state-of-the-art code-generation systems like KernelBench, yet existing tutorials focus exclusively on \emph{how} it works. This tutorial teaches \emph{when GRPO breaks and why the field moved on}. Grounded in GPU kernel optimization and execution-based verification, learners trace the transition from Supervised Fine-Tuning (SFT) and its limitations to Reinforcement Learning with Verifiable Rewards (RLVR). After implementing GRPO from scratch on CPU-friendly micro-environments, learners systematically trigger three core failure modes---zero-gradient groups, entropy collapse, and length bias---using interactive experiments. Each failure maps directly to a specific fix in DAPO (NeurIPS 2025), its direct successor. A scale-validation section confirms these failures are not toy artifacts: they have been independently documented in production GRPO training across math reasoning and GPU kernel synthesis~\cite{kevin,kernelbench}. The result is a failure-to-successor bridge absent from every existing GRPO educational resource.
+Group Relative Policy Optimization (GRPO) underpins the reinforcement-learning recipe described in DeepSeek-R1, while benchmarks such as KernelBench illustrate why executable verification is useful for code tasks. This tutorial teaches \emph{when GRPO's learning signal breaks and how newer methods revise it}. Grounded in GPU kernel optimization and execution-based verification, learners trace the transition from Supervised Fine-Tuning (SFT) and its limitations to Reinforcement Learning with Verifiable Rewards (RLVR). After implementing GRPO from scratch on CPU-friendly micro-environments, learners systematically trigger three core failure modes---zero-gradient groups, entropy collapse, and length bias---using interactive experiments. These failures motivate techniques studied in DAPO (NeurIPS 2025), while DisCO and S-GRPO revise other parts of the design. The result is a failure-to-fix bridge from GRPO foundations to recent research.
 \end{abstract}
 
 \section{Concept and Motivation}
 
-GRPO~\cite{deepseekmath} replaces the learned value network (critic) in PPO with a simpler idea: sample a group of $G$ responses to the same prompt, score them with a deterministic verifier, and compute advantages relative to the group mean. No critic, no value network---the group \emph{is} the baseline. This insight powers DeepSeek-R1~\cite{deepseekr1} and has become the default algorithm for reinforcement learning with verifiable rewards across mathematical reasoning and GPU kernel synthesis~\cite{kevin,kernelbench}.
+GRPO~\cite{deepseekmath} replaces the learned value network (critic) in PPO with a simpler idea: sample a group of $G$ responses to the same prompt, score them, and compute advantages relative to group statistics. No critic, no value network---the group \emph{is} the baseline. On verifiable tasks, a rule-based checker can supply the rewards without a learned reward model. This recipe is used in DeepSeek-R1~\cite{deepseekr1} and has become a widely used approach to RLVR.
 
-However, GRPO's simplicity conceals systematic failure modes that emerge in practice. These failures motivated three NeurIPS 2025 papers---DAPO~\cite{dapo}, DisCO~\cite{disco}, and S-GRPO~\cite{sgrpo}---each addressing specific failure modes. Understanding \emph{why} these successors were created requires understanding \emph{when} GRPO fails, which no existing educational resource provides.
+However, GRPO's simplicity conceals systematic failure modes that emerge in practice. Three NeurIPS 2025 papers---DAPO~\cite{dapo}, DisCO~\cite{disco}, and S-GRPO~\cite{sgrpo}---respond by revising different parts of the training design. Understanding \emph{why} these methods were created requires understanding \emph{when} GRPO fails.
 
 \paragraph{Central thesis.} GRPO learns only when its samples contain informative contrasts---and fails when the group or verifier provides none.
 
-\paragraph{Active frontier use.} GRPO and its variants are in widespread use at the frontier. At NeurIPS 2025 alone, DAPO~\cite{dapo}, DisCO~\cite{disco}, and S-GRPO~\cite{sgrpo} each build directly on GRPO. Beyond NeurIPS, GRPO underpins DeepSeek-R1~\cite{deepseekr1}, Qwen-2.5, and OpenReasoner-Zero. Recent works including RIPO (ICML 2025 submission), CE-GPPO (ACL 2026), and Park et~al.\ (2025) continue to analyze and extend GRPO's clipping mechanism, confirming it as an active area of research shaping the 2025--2026 landscape.
+\paragraph{Active frontier use.} GRPO and its variants are in widespread use at the frontier. DAPO~\cite{dapo}, DisCO~\cite{disco}, and S-GRPO~\cite{sgrpo} each analyze or revise GRPO, while DeepSeek-R1~\cite{deepseekr1} and Kevin~\cite{kevin} demonstrate GRPO-based training in reasoning and GPU-kernel generation settings.
 
 \section{Educational Design}
 
-\paragraph{Leveling.} Advanced undergraduate, graduate, or practitioner. Prerequisites: probability, gradients, softmax, basic LLM generation. \textbf{No prior RL knowledge assumed.}
+\paragraph{Leveling.} Advanced undergraduate, graduate, or practitioner. Prerequisites: basic reinforcement-learning understanding (including policies, rewards, policy gradients, and PPO), probability, gradients, softmax, and basic LLM generation.
 
 \paragraph{Arc.} The tutorial follows a coherent seven-stage progression, building from first principles to frontier methods:
 \begin{center}
 \texttt{What is SFT $\to$ SFT Limitations $\to$ Why RLVR $\to$ PPO 4-Model Pipeline $\to$ GRPO $\to$ Failure Lab $\to$ DAPO}
 \end{center}
-Section~1 builds the complete conceptual ladder: defining SFT and formalizing its loss (1.1), detailing the three structural limitations of SFT in multi-step reasoning (1.1), introducing the RL loop and policy gradient grounded in KernelBench (1.2), analyzing the full 4-model PPO architecture (1.3), explaining GRPO's 2-model simplification (1.4), and visualizing baseline variance reduction (1.5). This ensures learners with no prior RL background can follow every mathematical and algorithmic step.
+Section~1 refreshes the conceptual ladder: defining SFT and formalizing its loss (1.1), detailing the three structural limitations of SFT in multi-step reasoning (1.1), revisiting the RL loop and policy gradient grounded in KernelBench (1.2), analyzing the full 4-model PPO architecture (1.3), explaining GRPO's 2-model simplification (1.4), and visualizing baseline variance reduction (1.5). This gives learners a shared foundation for the mathematical and algorithmic steps that follow.
 
 \paragraph{Running domain and micro-environments.} Grounded in the real-world domain of GPU kernel generation (KernelBench~\cite{kernelbench}, Kevin~\cite{kevin}), where automated compilers (\texttt{nvcc}) and execution harnesses provide deterministic verification, we implement two CPU-friendly micro-environments:
 
@@ -91,7 +91,7 @@ The tutorial's differentiator is Section~5: three interactive experiments with \
   & ($\frac{1}{|o_i|}$ penalizes long CoT) & with identical rewards & (aggregate across tokens) \\
 \bottomrule
 \end{tabular}
-\caption{The failure-to-successor map: each lab experiment reveals a GRPO failure that directly motivates a DAPO technique.}
+\caption{The failure-to-fix map: each lab experiment reveals a GRPO failure addressed by a DAPO technique.}
 \end{table}
 
 Two bonus demonstrations (reward hacking via flawed verifiers, credit assignment limits of outcome reward) illustrate systemic failure modes outside DAPO's algorithmic scope.
@@ -103,12 +103,12 @@ After the lab, learners implement DAPO's four techniques in a unified framework:
 Two ``frontier cards'' illustrate how the design space extends further:
 \begin{itemize}[nosep,leftmargin=1.5em]
   \item \textbf{DisCO}~\cite{disco}: Replaces group-relative normalization (which introduces question-difficulty bias) with a discriminative objective and constrained optimization.
-  \item \textbf{S-GRPO}~\cite{sgrpo}: Replaces parallel group sampling with serial exit points and decaying rewards, achieving 40--61\% shorter reasoning chains with equal or better accuracy.
+  \item \textbf{S-GRPO}~\cite{sgrpo}: Replaces parallel group sampling with serial exit points and decaying rewards; the paper reports 40.4--61.1\% shorter sequences and absolute accuracy gains of 0.72--3.92 percentage points across its evaluated settings.
 \end{itemize}
 
 \section{Case Study: GRPO Failures at Scale}
 
-To validate that our micro-environment failure modes are not pedagogical artifacts, Section~7.5 maps each failure to independently documented evidence from production GRPO training. Sources include DAPO~\cite{dapo} itself (which motivates three of its four techniques by describing these exact failure modes), multi-turn RL for GPU kernel generation~\cite{kevin,kernelbench}, and the broader literature on reward hacking and process reward models. The failures are systematic consequences of GRPO's design choices, not incidental training mishaps.
+Section~7.5 connects the micro-environments to evidence at scale without claiming that the toy effect sizes reproduce full training. DAPO~\cite{dapo} documents entropy collapse, uninformative groups, token-level aggregation, and truncation noise in long-CoT RL. KernelBench~\cite{kernelbench} supplies the executable GPU-kernel task setting, while Kevin~\cite{kevin} documents GRPO-based kernel training, reward hacking, and multi-turn reward attribution challenges.
 
 \section{Materials Summary}
 
@@ -122,13 +122,13 @@ To validate that our micro-environment failure modes are not pedagogical artifac
 
 \section{Differentiation from Existing Resources}
 
-HuggingFace's GRPO tutorial, DeepLearning.AI's RL course module, and community walkthroughs all teach \emph{how} GRPO works. None provide a systematic failure taxonomy, none map failures to NeurIPS 2025 successors, and none let learners interactively create and observe the failure modes. This tutorial is the conceptual bridge from ``GRPO basics'' to understanding why the post-GRPO design space exists.
+Most GRPO tutorials emphasize \emph{how} the method works. This resource adds a systematic failure taxonomy, maps failures to three NeurIPS 2025 responses, and lets learners interactively create and observe the failure modes. It is a conceptual bridge from ``GRPO basics'' to the emerging GRPO design space.
 
 \bibliographystyle{plainnat}
 \begin{thebibliography}{9}
 
 \bibitem[Shao et~al.(2024)]{deepseekmath}
-Z.~Shao, P.~Wang, Q.~Zhu, R.~Xu, J.~Song, M.~Zhang, Y.~Li, Y.~Wu, and D.~Guo.
+Z.~Shao et~al.
 \newblock DeepSeekMath: Pushing the limits of mathematical reasoning in open language models.
 \newblock \emph{arXiv:2402.03300}, 2024.
 
@@ -144,7 +144,7 @@ Q.~Yu, Z.~Zhang, R.~Zhu, Y.~Yuan, X.~Zuo, Y.~Yue, et~al.
 \newblock ByteDance Seed and Institute for AI Industry Research (AIR), Tsinghua University. arXiv:2503.14476.
 
 \bibitem[Li et~al.(2025)]{disco}
-G.~Li, M.~Lin, T.~Galanti, Z.~Tu, and T.~Yang.
+G.~Li, M.~C.~Lin, T.~Galanti, Z.~Tu, and T.~Yang.
 \newblock DisCO: Reinforcing large reasoning models with discriminative constrained optimization.
 \newblock In \emph{NeurIPS}, 2025.
 \newblock Texas A\&M University. arXiv:2505.12366.

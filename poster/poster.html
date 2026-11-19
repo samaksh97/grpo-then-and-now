@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<!-- Source of the NeurIPS 2026 Education Track poster, 61 cm x 85 cm portrait.
+     Build it with `.venv/bin/python poster/build_poster.py` (or `make poster`), which fills every {{...}}
+     placeholder and prints poster/grpo_then_and_now_poster.pdf. Numbers come from figures/set/figures.json. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GRPO, Then and Now · NeurIPS 2026 Education Track poster</title>
+{{KATEX}}
+<style>
+@page { size: 610mm 850mm; margin: 0; }
+:root {
+  --ink: #0f1b2d; --muted: #4b5a6e; --line: #d5dce7; --panel: #f4f6fa; --blue: #1d4ed8; --navy: #0f172a;
+  --red: #b42318; --red-bg: #fdeeee; --dapo: #157347; --dapo-bg: #e8f4ed; --disco: #5b45c9; --disco-bg: #efecfb;
+  --sgrpo: #b45309; --sgrpo-bg: #fdf1e5;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: "Segoe UI", Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif; color: var(--ink);
+       font-size: 26px; line-height: 1.32; }
+h1, h2, h3, p { margin: 0; }
+code { font-family: Consolas, "JetBrains Mono", ui-monospace, monospace; font-size: .88em; }
+svg text { font-family: "Segoe UI", Inter, system-ui, sans-serif !important; }
+.poster { width: 610mm; height: 850mm; padding: 46px 60px 34px; display: flex; flex-direction: column; gap: 15px;
+          overflow: hidden; }
+.serif { font-family: Georgia, "Times New Roman", serif; }
+.mono-label { font: 700 22px/1 Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+
+/* header */
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px;
+       border-bottom: 5px solid var(--ink); padding-bottom: 20px; }
+.tag { display: inline-block; background: var(--blue); color: #fff; padding: 10px 16px; border-radius: 6px; }
+h1 { font-family: Georgia, "Times New Roman", serif; font-size: 112px; line-height: 1.02; margin: 12px 0 4px; }
+.subtitle { font-size: 40px; color: #24324a; }
+.authors { margin-top: 10px; font-size: 30px; }
+.authors span { color: var(--muted); }
+.qrs { display: flex; gap: 30px; }
+.qr { margin: 0; width: 220px; text-align: center; }
+.qr svg { width: 220px; height: 220px; display: block; }
+.qr figcaption { margin-top: 8px; font-size: 19px; color: var(--muted); line-height: 1.25; }
+.qr figcaption b { display: block; color: var(--ink); font-size: 25px; margin-bottom: 2px; }
+
+/* banners */
+.idea { background: var(--navy); color: #fff; border-radius: 16px; padding: 16px 30px; font-size: 34px; line-height: 1.25; }
+.idea .mono-label { color: #8fb3ff; margin-right: 18px; vertical-align: 6px; }
+.why { border: 2px solid var(--line); background: var(--panel); border-radius: 16px; padding: 12px 26px; font-size: 25px; }
+.why .mono-label { color: var(--blue); margin-right: 18px; vertical-align: 3px; }
+
+/* sections */
+section { border: 2px solid var(--line); border-radius: 18px; padding: 16px 24px 18px; }
+h2 { font-family: Georgia, "Times New Roman", serif; font-size: 42px; line-height: 1.1; margin-bottom: 10px; }
+h2 .num { color: var(--blue); margin-right: 14px; }
+.lead { color: var(--muted); font-size: 22px; margin-bottom: 8px; }
+.b { display: inline-flex; align-items: center; justify-content: center; width: 1.5em; height: 1.5em; border-radius: 50%;
+     background: var(--red); color: #fff; font-style: normal; font-weight: 700; font-size: .8em; margin-right: .35em;
+     flex: none; }
+
+/* 1: anatomy */
+.eq { display: flex; align-items: flex-start; justify-content: center; gap: 10px; font-size: 40px; margin-top: 2px; }
+.eq .m { display: inline-block; padding-top: 6px; }
+.hl { display: inline-flex; flex-direction: column; align-items: center; }
+.hl > .m { background: var(--red-bg); border-bottom: 4px solid var(--red); border-radius: 8px 8px 0 0; padding: 6px 12px 2px; }
+.hl .fails { margin-top: 8px; font-size: 22px; font-weight: 600; color: var(--red); white-space: nowrap; }
+.hl .fails .b { font-size: 18px; }
+.hl .fails .b + .b, .hl .fails span + .b { margin-left: .8em; }
+.note { margin-top: 6px; text-align: center; color: var(--muted); font-size: 21px; }
+
+/* 2: failures */
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.fail { background: var(--panel); border-radius: 14px; padding: 12px 16px; display: flex; flex-direction: column; }
+.fail h3 { font-size: 30px; display: flex; align-items: center; }
+.fail h3 .b { font-size: 21px; }
+.fail p { font-size: 22px; color: #2b3950; margin: 4px 0 2px; min-height: 2.64em; }
+.chart svg { width: 100%; height: auto; display: block; }
+.fix { margin-top: auto; border-radius: 10px; padding: 8px 12px; font-size: 21px; line-height: 1.26; }
+.fix .who { display: block; font: 700 17px/1.25 Consolas, monospace; letter-spacing: .05em; text-transform: uppercase;
+            margin-bottom: 3px; }
+.fix.dapo { background: var(--dapo-bg); } .fix.dapo .who { color: var(--dapo); }
+.fix.disco { background: var(--disco-bg); } .fix.disco .who { color: var(--disco); }
+.fix.sgrpo { background: var(--sgrpo-bg); } .fix.sgrpo .who { color: var(--sgrpo); }
+
+/* 3: responses */
+.cards { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 20px; }
+.card { border: 3px solid; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; }
+.card.dapo { border-color: var(--dapo); } .card.disco { border-color: var(--disco); } .card.sgrpo { border-color: var(--sgrpo); }
+.card h3 { font-family: Georgia, "Times New Roman", serif; font-size: 38px; display: flex; justify-content: space-between;
+           align-items: baseline; gap: 12px; }
+.card h3 small { font-family: "Segoe UI", sans-serif; font-size: 20px; color: var(--muted); font-weight: 400; }
+.card.dapo h3 { color: var(--dapo); } .card.disco h3 { color: var(--disco); } .card.sgrpo h3 { color: var(--sgrpo); }
+.tagline { font-style: italic; font-size: 23px; margin: 0 0 4px; }
+.fixes { font-size: 21px; color: var(--muted); display: flex; align-items: center; gap: 2px; }
+.fixes .b { font-size: 17px; margin-right: .15em; }
+.src { margin-top: auto; padding-top: 8px; font-size: 19px; color: var(--muted); }
+.stat { font-size: 60px; font-weight: 700; line-height: 1.05; margin: 14px 0 6px; color: var(--sgrpo); }
+.mini { width: 100%; border-collapse: collapse; font-size: 23px; margin-top: 6px; }
+.mini th, .mini td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+.mini th { font-size: 18px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.mini td.up { color: var(--disco); font-weight: 700; }
+
+/* 4 and 5 */
+.bottom { display: grid; grid-template-columns: 1.85fr 1fr; gap: 18px; }
+table.testbed { width: 100%; border-collapse: collapse; font-size: 20px; }
+table.testbed th, table.testbed td { padding: 5px 7px; white-space: nowrap; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.testbed thead th { font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+table.testbed tbody th { font-size: 22px; white-space: nowrap; }
+table.testbed td.chg { background: #e7eeff; color: var(--blue); font-weight: 700; }
+table.testbed tr.trl th, table.testbed tr.trl td { color: var(--muted); font-size: 17px; border-bottom: none; }
+.paths { list-style: none; padding: 0; margin: 0; font-size: 22px; }
+.paths li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.paths li b { color: var(--blue); }
+.outcomes { margin-top: 10px; font-size: 21px; color: #2b3950; }
+.outcomes b { color: var(--ink); }
+
+/* footer */
+footer { margin-top: auto; border-top: 2px solid var(--line); padding-top: 10px; font-size: 17px; color: var(--muted);
+         line-height: 1.35; display: grid; grid-template-columns: 1fr 1.7fr; gap: 28px; }
+footer b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="poster">
+
+<header class="top">
+  <div>
+    <span class="tag mono-label">NeurIPS 2026 · Education Track</span>
+    <h1>GRPO, Then and Now</h1>
+    <div class="subtitle">An Interactive Guide to Modern Reinforcement Learning for Reasoning</div>
+    <div class="authors"><b>Samaksh Gulati</b> · <b>Rachel Shalom</b> <span>— Dell Technologies</span></div>
+  </div>
+  <div class="qrs">
+    <figure class="qr">{{QR:site}}<figcaption><b>Open the decks</b>samaksh97.github.io/<br>grpo-then-and-now</figcaption></figure>
+    <figure class="qr">{{QR:code}}<figcaption><b>Code &amp; notebooks</b>github.com/samaksh97/<br>grpo-then-and-now</figcaption></figure>
+  </div>
+</header>
+
+<div class="idea serif"><span class="mono-label">One idea</span>GRPO learns only when its samples contain informative contrasts, and fails when the group or the verifier provides none.</div>
+
+<div class="why"><span class="mono-label">Why it matters</span>Used in training <b>DeepSeek-V3</b>, <b>DeepSeek-R1</b> and <b>Qwen3</b> · built into <b>TRL</b>, <b>verl</b> and <b>OpenRLHF</b> · revised by three <b>NeurIPS 2025</b> papers</div>
+
+<section class="anatomy">
+  <h2><span class="num">1</span>Anatomy of a GRPO update: every highlighted choice is a failure mode</h2>
+  <div class="eq">
+    <span class="m" data-tex="J(\theta) = \mathbb{E}\Big[\,\frac{1}{G}\sum_{i=1}^{G}"></span>
+    <span class="hl"><span class="m" data-tex="\frac{1}{|o_i|}"></span><span class="fails"><i class="b">3</i>length bias</span></span>
+    <span class="m" data-tex="\sum_{t=1}^{|o_i|}\Big(\min\big(r_{i,t}\,\hat{A}_i,\;"></span>
+    <span class="hl"><span class="m" data-tex="\operatorname{clip}(r_{i,t},\,1-\varepsilon,\,1+\varepsilon)"></span><span class="fails"><i class="b">2</i>rare tokens can't grow</span></span>
+    <span class="m" data-tex="\hat{A}_i\big) - \beta\,\mathbb{D}_{\mathrm{KL}}\Big)\Big]"></span>
+  </div>
+  <div class="eq">
+    <span class="m" data-tex="\text{where}\quad \hat{A}_i ="></span>
+    <span class="hl"><span class="m" data-tex="\dfrac{R_i - \operatorname{mean}(R)}{\operatorname{std}(R)}"></span><span class="fails"><i class="b">1</i>std = 0: no gradient <i class="b">5</i>difficulty bias</span></span>
+    <span class="m" data-tex="\quad\text{and}\quad R_i ="></span>
+    <span class="hl"><span class="m" data-tex="\operatorname{verify}(o_i) \in \{0, 1\}"></span><span class="fails"><i class="b">4</i>cut at L<sub>max</sub> <i class="b">6</i>blind to length</span></span>
+  </div>
+  <p class="note">Sample G answers per prompt, score each with a verifier, compare each answer only with its own group: no critic. r<sub>i,t</sub> = π<sub>θ</sub>/π<sub>old</sub> per token; the KL term keeps the policy near a reference.</p>
+</section>
+
+<section class="failures">
+  <h2><span class="num">2</span>Trigger it, then fix it</h2>
+  <div class="grid3">
+    <article class="fail">
+      <h3><i class="b">1</i>Zero-gradient groups</h3>
+      <p>If all G rewards agree, std = 0 and every advantage is 0: the group teaches nothing. It gets worse as the model improves.</p>
+      <div class="chart">{{CHART:no_gradient}}</div>
+      <div class="fix dapo"><span class="who">DAPO · Dynamic Sampling</span>Drop all-equal groups and refill the batch, at the cost of extra generation.</div>
+    </article>
+    <article class="fail">
+      <h3><i class="b">2</i>Rare tokens can't grow</h3>
+      <p>The clip bounds the ratio, not the probability, so rare correct tokens barely move and exploration collapses.</p>
+      <div class="chart">{{CHART:clip}}</div>
+      <div class="fix dapo"><span class="who">DAPO · Clip-Higher | DisCO</span>Raise only the upper bound to 0.28 (DAPO), or drop the clip for a KL constraint (DisCO).</div>
+    </article>
+    <article class="fail">
+      <h3><i class="b">3</i>Length bias</h3>
+      <p>Averaging per answer first: short answers weigh more per token, and long wrong answers are penalized less per token.</p>
+      <div class="chart">{{CHART:length}}</div>
+      <div class="fix dapo"><span class="who">DAPO · Token-level loss</span>Average over every token in the batch; Dr. GRPO uses a constant divisor.</div>
+    </article>
+    <article class="fail">
+      <h3><i class="b">4</i>Truncation noise</h3>
+      <p>A hard cut at L<sub>max</sub> scores a long but correct answer as wrong, with no warning before the wall.</p>
+      <div class="chart">{{CHART:overlong}}</div>
+      <div class="fix dapo"><span class="who">DAPO · Overlong filtering and shaping</span>Mask truncated answers in the loss, and add a graded penalty before the limit.</div>
+    </article>
+    <article class="fail">
+      <h3><i class="b">5</i>Difficulty bias</h3>
+      <p>Dividing by the group's std weights each question by √(p(1−p)): nearly solved and nearly hopeless questions fade out.</p>
+      <div class="chart">{{CHART:difficulty}}</div>
+      <div class="fix disco"><span class="who">DisCO · Discriminative objective</span>Score answers discriminatively with no difficulty weight: every question counts the same.</div>
+    </article>
+    <article class="fail">
+      <h3><i class="b">6</i>Overthinking</h3>
+      <p>An outcome reward pays the same for a correct answer after 200 tokens or 2,000, so redundant reasoning is free.</p>
+      <div class="chart">{{CHART:serial_group}}</div>
+      <div class="fix sgrpo"><span class="who">S-GRPO · Serial exits</span>Cut one chain at several points: earlier correct exits earn more, wrong ones earn 0.</div>
+    </article>
+  </div>
+</section>
+
+<section class="responses">
+  <h2><span class="num">3</span>Three responses, and what their papers report</h2>
+  <div class="cards">
+    <div class="card dapo">
+      <h3>DAPO <small>Yu et al., NeurIPS 2025</small></h3>
+      <div class="tagline">Four edits to the same objective</div>
+      <div class="fixes">fixes&nbsp;<i class="b">1</i><i class="b">2</i><i class="b">3</i><i class="b">4</i></div>
+      <div class="chart">{{CHART:dapo_ablation}}</div>
+      <div class="src">Cumulative ablation, Qwen2.5-32B base (DAPO, Table 1).</div>
+    </div>
+    <div class="card disco">
+      <h3>DisCO <small>Li et al., NeurIPS 2025</small></h3>
+      <div class="tagline">Change the objective's structure</div>
+      <div class="fixes">fixes&nbsp;<i class="b">5</i><i class="b">2</i></div>
+      <table class="mini">
+        <tr><th>avg Pass@1, six math benchmarks</th><th>GRPO</th><th>DisCO</th></tr>
+        <tr><td>1.5B</td><td>0.457</td><td class="up">0.533</td></tr>
+        <tr><td>7B</td><td>0.592</td><td class="up">0.627</td></tr>
+        <tr><td>Llama 8B</td><td>0.516</td><td class="up">0.584</td></tr>
+      </table>
+      <div class="src">Best DisCO variant against GRPO (DisCO, Tables 2–4). Same symptom 2 as DAPO, opposite cure: DAPO widens the clip, DisCO removes it.</div>
+    </div>
+    <div class="card sgrpo">
+      <h3>S-GRPO <small>Dai, Yang &amp; Si, NeurIPS 2025</small></h3>
+      <div class="tagline">Reward concise, sufficient reasoning</div>
+      <div class="fixes">fixes&nbsp;<i class="b">6</i></div>
+      <div class="stat">40.4–61.1%</div>
+      <div>shorter reasoning, with an accuracy change of <b>+0.72 to +3.92</b> points</div>
+      <div class="src">S-GRPO, NeurIPS version, abstract.</div>
+    </div>
+  </div>
+</section>
+
+<div class="bottom">
+  <section>
+    <h2><span class="num">4</span>Every method is a setting of one objective</h2>
+    <p class="lead">The testbed runs presets on one seed, diffs their flags, and maps each flag to TRL, verl and OpenRLHF. <span style="color:var(--blue)">Blue</span>: differs from GRPO.</p>
+    {{TESTBED_TABLE}}
+  </section>
+  <section>
+    <h2><span class="num">5</span>Use it</h2>
+    <ul class="paths">
+      <li><b>15 min</b> · the GRPO deck</li>
+      <li><b>50 min</b> · deck → <code>01_grpo_core</code> → <code>02_failure_lab</code> → exercises</li>
+      <li><b>Deep dives</b> · DAPO, DisCO, S-GRPO: a deck and a notebook each</li>
+      <li><b>Compare</b> · <code>04_method_testbed</code></li>
+    </ul>
+    <p class="outcomes"><b>Learners leave able to</b> compute advantages by hand, trigger each failure, compare methods by the part they change, and pick a design for a new verifiable-reward task.</p>
+    <p class="outcomes">4 decks · 8 CPU-only notebooks · Colab · no GPU or API key</p>
+  </section>
+</div>
+
+<footer>
+  <div><b>Limitations.</b> Toy CPU environments isolate each mechanism; LLM-scale numbers are those reported in the cited papers. Not yet evaluated with learners: feedback is welcome. Code Apache-2.0, content CC BY 4.0.</div>
+  <div><b>References.</b> Shao et al. 2024 (DeepSeekMath, GRPO) · DeepSeek-AI 2024 (DeepSeek-V3) and 2025 (DeepSeek-R1) · Qwen Team 2025 (Qwen3) · Yu et al. 2025 (DAPO) · Li et al. 2025 (DisCO) · Dai, Yang &amp; Si 2025 (S-GRPO) · Liu et al. 2025 (Dr. GRPO) · Zheng et al. 2025 (GSPO) · MiniMax 2025 (CISPO) · Schulman et al. 2017 (PPO) · Ouyang et al. 2025 (KernelBench).</div>
+</footer>
+
+</div>
+<script>
+document.querySelectorAll("[data-tex]").forEach(function (el) {
+  katex.render(el.getAttribute("data-tex"), el, {throwOnError: true, displayMode: false});
+});
+</script>
+</body>
+</html>

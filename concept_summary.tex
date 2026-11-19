@@ -1,16 +1,18 @@
 \documentclass{article}
-% NeurIPS 2026 Education Track: single-blind (author names included) and the
-% "education, final" template variant requested in the Call for Educational Resources.
+% NeurIPS 2026 Education Track: single-blind, using the required
+% "education, final" template variant and omitting the paper checklist.
 \usepackage[education, final]{neurips_2026}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{hyperref}
 \usepackage{url}
+\urlstyle{same}
 \usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{enumitem}
 
-\title{Breaking GRPO: An Interactive Failure Lab for\\Reinforcement Learning with Verifiable Rewards}
+\title{GRPO, Then and Now: An Interactive Guide to\\Modern Reinforcement Learning for Reasoning}
 
 \author{
   Samaksh Gulati \\
@@ -25,114 +27,116 @@
 \maketitle
 
 \begin{abstract}
-Group Relative Policy Optimization (GRPO) became the default algorithm for reinforcement learning with verifiable rewards almost overnight, yet every existing resource teaches only \emph{how} it works. We teach the concept the field actually converged on in 2025: \emph{GRPO's structural failure modes, and the successor design space they produced}. Learners drive three failures --- zero-gradient groups, entropy collapse, and length bias --- in a CPU-only interactive lab framed on KernelBench GPU-kernel tasks, then implement the corresponding DAPO fixes and watch each failure disappear. The result is a failure-to-successor bridge that no current GRPO resource provides.
+Reinforcement learning (RL) has moved to the center of language-model post-training. On tasks with verifiable outcomes, rule-based rewards remove the need for a learned reward model, and critic-free methods reduce the overhead of PPO. It is therefore easy to run a modern reasoning-RL recipe without understanding why it works, when it fails, or how newer methods revise it. We present a visual, executable path through Group Relative Policy Optimization (GRPO), three responses to its limitations (DAPO, DisCO, and S-GRPO), and a map that places later revisions such as Dr.~GRPO and GSPO. Four self-contained interactive decks build intuition; eight CPU-only notebooks let learners trigger each failure, test the repairs, and run every method as a setting of one objective. Learners leave able not merely to reproduce an update, but to reason about current design choices.
 \end{abstract}
 
-\section{The Concept}
+\section{The concept}
 
-\textbf{Concept taught: the failure modes of GRPO and the 2025 successor design space (DAPO, DisCO, S-GRPO).} This is an emerging concept, not an established one: GRPO was introduced in 2024~\cite{deepseekmath}, scaled by DeepSeek-R1 in 2025~\cite{deepseekr1}, and its documented failure modes directly produced three NeurIPS 2025 papers.
+\textbf{Concept taught: the emerging GRPO design space for RLVR---how group-relative optimization works, where its learning signal breaks, and how recent methods revise different parts of it.}
+GRPO~\citep{deepseekmath} samples a group of responses to one prompt and measures each response relative to that group, eliminating PPO's learned critic. In reinforcement learning with verifiable rewards (RLVR), a rule-based checker can also replace a learned reward model. This simplifies the training loop, but its design choices introduce characteristic failures: uninformative groups, entropy collapse, length and question-difficulty bias, truncation noise, and overthinking.
 
-GRPO removes two of the four models in the PPO/RLHF pipeline: the learned reward model is replaced by a deterministic verifier, and the critic is replaced by the mean reward of a group of $G$ sampled responses. The group \emph{is} the baseline, so advantages are $A_i = (R_i - \text{mean}(R)) / (\text{std}(R) + \epsilon)$.
+Our organizing idea is a \emph{failure-to-fix progression}: learners understand a design choice, trigger its failure, and then see why a newer method changes that piece. DAPO~\citep{dapo} repairs clipping, sampling, token aggregation, and truncation; DisCO~\citep{disco} removes difficulty-dependent weighting and replaces clipping with discriminative constrained optimization; S-GRPO~\citep{sgrpo} uses serial exits to reward concise, sufficient reasoning. A closing map places later revisions, such as Dr.~GRPO's normalization fix~\citep{drgrpo}, GSPO's sequence-level ratio~\citep{gspo}, and adaptive clipping~\citep{dcpo,bapo}.
 
-That one substitution is also the source of its fragility, and this is the insight learners take away:
+\noindent\includegraphics[width=\linewidth]{figures/neurips_figure_simple.pdf}
 
-\begin{center}
-\emph{GRPO learns only when its samples contain informative contrasts --- and fails when the group or the verifier provides none.}
-\end{center}
+\section{Leveling and prerequisite knowledge}
 
-Three failures follow mechanically from that sentence, at three different structural levels, and each maps one-to-one onto a technique in DAPO~\cite{dapo} (Table~\ref{tab:map}). Learners do not read about the failures; they set the sliders that cause them. No existing resource (HuggingFace's GRPO tutorial, DeepLearning.AI's RL module, community walkthroughs) provides this failure taxonomy or connects it to the post-GRPO literature.
+\textbf{Level: advanced undergraduate, graduate, and practitioner.} Learners need basic reinforcement-learning understanding---including policies, rewards, policy gradients, and PPO---along with probability and expectations, gradients, softmax, and basic autoregressive generation. An optional refresher covers policy gradients, baselines, and PPO's clipped objective~\citep{ppo}; learners who know PPO can skip it.
 
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{@{}llll@{}}
-\toprule
-\textbf{Failure mode} & \textbf{Level} & \textbf{What the learner triggers} & \textbf{Successor fix} \\
-\midrule
-Zero-gradient groups & Group & All rollouts agree $\Rightarrow \sigma=0 \Rightarrow A_i=0$ & Dynamic Sampling \\
-Entropy collapse & Token & Symmetric clip starves rare good tokens & Clip-Higher \\
-Length bias & Sequence & $1/|o_i|$ over-weights short answers & Token-Level Loss \\
-Truncation noise & Sequence & Hard length cutoff creates a reward cliff & Overlong Shaping \\
-\bottomrule
-\end{tabular}
-\caption{The failure-to-successor map. Each lab experiment produces a failure that motivates a specific DAPO technique, which learners then implement.}
-\label{tab:map}
-\end{table}
-
-\section{Leveling and Prerequisite Knowledge}
-
-\textbf{Level: advanced undergraduate to graduate / practitioner.} Prerequisites are probability and expectations, gradients, the softmax function, and how an LLM samples tokens autoregressively. \textbf{No prior reinforcement learning knowledge is assumed}: a short scaffolding section ($\sim$10 of $\sim$55 minutes) establishes the SFT$\to$RL$\to$PPO vocabulary needed to make the failure analysis legible. That scaffolding is deliberately brief and is not the contribution --- the emerging material is the failure lab and the successor methods.
-
-\section{Learning Objectives and Outcomes}
+\section{Learning objectives and outcomes}
 
 By the end, a learner will be able to:
 \begin{enumerate}[nosep,leftmargin=1.4em]
-  \item \textbf{Understand} why replacing PPO's critic with a group mean is both GRPO's efficiency win (4 models $\to$ 2) and the origin of its failure modes.
-  \item \textbf{Apply} the group-relative advantage by hand and implement a working GRPO update in $\sim$30 lines of NumPy.
-  \item \textbf{Analyse} why symmetric ratio clipping is asymmetric in probability space, and why that starves exploration.
-  \item \textbf{Evaluate} when zero-gradient groups will dominate, predicting the wasted-compute fraction from success rate and group size $G$.
-  \item \textbf{Create} the four DAPO fixes and verify each repairs its corresponding failure, plus design a reward-hacking verifier and a defence against it.
-  \item \textbf{Evaluate} whether GRPO, DAPO, DisCO, or S-GRPO suits a given task using a readiness checklist.
+  \item \textbf{Explain} GRPO's group baseline, clipped objective, savings over PPO, and relation to RLVR.
+  \item \textbf{Apply} group-relative advantages by hand and implement a minimal GRPO update.
+  \item \textbf{Analyse} zero-gradient groups, entropy collapse, length and difficulty bias, and truncation noise.
+  \item \textbf{Compare} DAPO, DisCO, S-GRPO, and later methods by what each changes and its trade-off.
+  \item \textbf{Experiment} with clipping, group size, aggregation, constraints, hard negatives, and early exits.
+  \item \textbf{Evaluate} which GRPO-style design is appropriate for a new verifiable-reward task.
 \end{enumerate}
 
-\section{Linked Papers}
+\section{Linked papers}
 
-The concept is in active use at the frontier. GRPO originates in DeepSeekMath~\cite{deepseekmath} and powers DeepSeek-R1~\cite{deepseekr1}. Three NeurIPS 2025 papers build directly on it, and each is motivated by a failure this lab reproduces: \textbf{DAPO}~\cite{dapo} introduces Dynamic Sampling, Clip-Higher, Token-Level Loss and Overlong Reward Shaping, explicitly citing entropy collapse and reward noise; \textbf{DisCO}~\cite{disco} removes the question-difficulty bias in group-relative normalisation via a discriminative objective and constrained optimisation; \textbf{S-GRPO}~\cite{sgrpo} replaces parallel groups with serial exit points and decaying rewards, cutting reasoning length 40--61\%. The verifiable-reward setting we use for framing is KernelBench~\cite{kernelbench} (ICML 2025), and Kevin~\cite{kevin} applies multi-turn RL over those same tasks, independently reporting entropy collapse and reward hacking at scale --- evidence that the toy failures are not artifacts.
+DeepSeekMath~\citep{deepseekmath} introduced GRPO in 2024; DeepSeek-V3~\citep{deepseekv3}, DeepSeek-R1~\citep{deepseekr1}, and Qwen3's reasoning RL~\citep{qwen3} use it, and TRL, verl, and OpenRLHF implement it. Three NeurIPS 2025 papers define the response arc taught here: DAPO's large-scale system and four training techniques~\citep{dapo}, DisCO's analysis of difficulty bias~\citep{disco}, and S-GRPO's serial groups for shorter reasoning~\citep{sgrpo}. KernelBench~\citep{kernelbench} frames our examples as verifiable code tasks.
 
-\section{Teaching Materials Summary}
+\section{Teaching materials summary}
 
 \begin{itemize}[nosep,leftmargin=1.4em]
-  \item \textbf{Notebook} (\texttt{grpo\_failure\_lab.ipynb}): 65 cells (29 code, 36 markdown), $\sim$55 minutes, pure NumPy/Matplotlib. Three interactive \texttt{ipywidgets} experiments, each with a static fallback so the notebook renders without a kernel. Runs end-to-end on a laptop CPU in under a minute; no GPU, LLM, or API key.
-  \item \textbf{Two micro-environments} framed on KernelBench: a \emph{Micro-Bandit} (choose the tile/block configuration for the Square-Matmul problem) isolating group-level failures, and a \emph{Micro-Sequence} (emit a 4-stage tiled-kernel pipeline) isolating token- and sequence-level failures.
-  \item \textbf{Figures}: 15 generated plots, including the PPO-vs-GRPO pipeline comparison, the clipping-asymmetry single-step walkthrough, entropy-collapse curves, and the DAPO-vs-GRPO repair comparison.
-  \item \textbf{Exercises}: 6 analytical, implementation, and diagnostic exercises with collapsible in-notebook solutions plus a standalone verified solution script.
-  \item \textbf{Data}: KernelBench Level-1 task specifications referenced by real problem ID (\texttt{1\_Square\_matrix\_multiplication\_}, \texttt{23\_Softmax}, \texttt{40\_LayerNorm}). Per-kernel latency/speedup values are clearly labelled \emph{illustrative} --- representative of published KernelBench and Kevin findings, not live \texttt{nvcc} runs --- with provenance and GPU reproduction instructions documented alongside the data.
-  \item \textbf{Supporting}: a plain-language primer for pre-reading, and this summary. All materials are original and created for this track.
+  \item \textbf{Four interactive decks} (GRPO orientation, DAPO, DisCO, S-GRPO) with PDF handouts: one claim and one curated figure per slide, derivations in collapsible drawers, glossaries, and checks for understanding; each works offline as a single file.
+  \item \textbf{Eight executable notebooks:} an optional PPO refresher, a 30-minute GRPO core, a failure lab, exercises, a testbed where every method is a configuration mapped to TRL/verl/OpenRLHF options, and focused DAPO, DisCO, and S-GRPO labs; CPU-only and runnable on Colab.
+  \item \textbf{Reusable support:} 15 curated figures, six exercises with verified solutions, tests that re-run every notebook, and KernelBench-framed task data with clearly labelled illustrative metrics.
 \end{itemize}
+All artifacts share a predict--inspect--modify--explain rhythm and were created for this track. Decks: \href{https://samaksh97.github.io/grpo-then-and-now}{\nolinkurl{samaksh97.github.io/grpo-then-and-now}}; code: \href{https://github.com/samaksh97/grpo-then-and-now}{\nolinkurl{github.com/samaksh97/grpo-then-and-now}}. \textbf{Limitations:} the toys isolate mechanisms rather than reproduce LLM-scale results, the materials have not yet been evaluated with learners, and the method map will need updates as the field moves.
 
 \bibliographystyle{plainnat}
-\begin{thebibliography}{9}
+\setlength{\bibsep}{0pt}
+\begin{thebibliography}{13}
 \small
 
 \bibitem[Shao et~al.(2024)]{deepseekmath}
-Z.~Shao, P.~Wang, Q.~Zhu, R.~Xu, J.~Song, M.~Zhang, Y.~Li, Y.~Wu, and D.~Guo.
-\newblock DeepSeekMath: Pushing the limits of mathematical reasoning in open language models.
+Z.~Shao et~al.
+\newblock \href{https://arxiv.org/abs/2402.03300}{DeepSeekMath: Pushing the limits of mathematical reasoning in open language models}.
 \newblock \emph{arXiv:2402.03300}, 2024.
+
+\bibitem[DeepSeek-AI(2024)]{deepseekv3}
+DeepSeek-AI.
+\newblock \href{https://arxiv.org/abs/2412.19437}{DeepSeek-V3 technical report}.
+\newblock \emph{arXiv:2412.19437}, 2024.
 
 \bibitem[DeepSeek-AI(2025)]{deepseekr1}
 DeepSeek-AI.
-\newblock DeepSeek-R1: Incentivizing reasoning capability in LLMs via reinforcement learning.
+\newblock \href{https://arxiv.org/abs/2501.12948}{DeepSeek-R1: Incentivizing reasoning capability in LLMs via reinforcement learning}.
 \newblock \emph{arXiv:2501.12948}, 2025.
 
+\bibitem[{Qwen Team}(2025)]{qwen3}
+Qwen Team.
+\newblock \href{https://arxiv.org/abs/2505.09388}{Qwen3 technical report}.
+\newblock \emph{arXiv:2505.09388}, 2025.
+
 \bibitem[Yu et~al.(2025)]{dapo}
-Q.~Yu, Z.~Zhang, R.~Zhu, Y.~Yuan, X.~Zuo, Y.~Yue, et~al.
-\newblock DAPO: An open-source LLM reinforcement learning system at scale.
-\newblock In \emph{NeurIPS}, 2025. arXiv:2503.14476.
+Q.~Yu et~al.
+\newblock \href{https://proceedings.neurips.cc/paper_files/paper/2025/hash/a4277440d50f1f15d2cb4c14f7e0c0d2-Abstract-Conference.html}{DAPO: An open-source LLM reinforcement learning system at scale}.
+\newblock In \emph{NeurIPS}, 2025.
 
 \bibitem[Li et~al.(2025)]{disco}
-G.~Li, M.~Lin, T.~Galanti, Z.~Tu, and T.~Yang.
-\newblock DisCO: Reinforcing large reasoning models with discriminative constrained optimization.
-\newblock In \emph{NeurIPS}, 2025. arXiv:2505.12366.
+G.~Li, M.~C.~Lin, T.~Galanti, Z.~Tu, and T.~Yang.
+\newblock \href{https://proceedings.neurips.cc/paper_files/paper/2025/hash/52d6c85793b3dd47636eb430710da915-Abstract-Conference.html}{DisCO: Reinforcing large reasoning models with discriminative constrained optimization}.
+\newblock In \emph{NeurIPS}, 2025.
 
 \bibitem[Dai et~al.(2025)]{sgrpo}
 M.~Dai, C.~Yang, and Q.~Si.
-\newblock S-GRPO: Early exit via reinforcement learning in reasoning models.
-\newblock In \emph{NeurIPS}, 2025. arXiv:2505.07686.
+\newblock \href{https://proceedings.neurips.cc/paper_files/paper/2025/hash/44f09d1973a88529b40029e6c3693ded-Abstract-Conference.html}{S-GRPO: Early exit via reinforcement learning in reasoning models}.
+\newblock In \emph{NeurIPS}, 2025.
 
 \bibitem[Ouyang et~al.(2025)]{kernelbench}
-A.~Ouyang, S.~Guo, S.~Arora, A.~L.~Zhang, W.~Hu, C.~R\'e, and A.~Mirhoseini.
-\newblock KernelBench: Can LLMs write efficient GPU kernels?
-\newblock In \emph{ICML}, 2025. arXiv:2502.10517.
-
-\bibitem[Baronio et~al.(2025)]{kevin}
-C.~Baronio, P.~Marsella, B.~Pan, S.~Guo, and S.~Alberti.
-\newblock Kevin: Multi-turn RL for generating CUDA kernels.
-\newblock \emph{arXiv:2507.11948}, 2025.
+A.~Ouyang et~al.
+\newblock \href{https://proceedings.mlr.press/v267/ouyang25a.html}{KernelBench: Can LLMs write efficient GPU kernels?}
+\newblock In \emph{ICML}, 2025.
 
 \bibitem[Schulman et~al.(2017)]{ppo}
-J.~Schulman, F.~Wolski, P.~Dhariwal, A.~Radford, and O.~Klimov.
-\newblock Proximal policy optimization algorithms.
+J.~Schulman et~al.
+\newblock \href{https://arxiv.org/abs/1707.06347}{Proximal policy optimization algorithms}.
 \newblock \emph{arXiv:1707.06347}, 2017.
+
+\bibitem[Liu et~al.(2025)]{drgrpo}
+Z.~Liu et~al.
+\newblock \href{https://arxiv.org/abs/2503.20783}{Understanding R1-Zero-like training: A critical perspective}.
+\newblock \emph{arXiv:2503.20783}, 2025.
+
+\bibitem[Zheng et~al.(2025)]{gspo}
+C.~Zheng et~al.
+\newblock \href{https://arxiv.org/abs/2507.18071}{Group sequence policy optimization}.
+\newblock \emph{arXiv:2507.18071}, 2025.
+
+\bibitem[Yang et~al.(2025)]{dcpo}
+S.~Yang et~al.
+\newblock \href{https://arxiv.org/abs/2509.02333}{DCPO: Dynamic clipping policy optimization}.
+\newblock \emph{arXiv:2509.02333}, 2025.
+
+\bibitem[Xi et~al.(2026)]{bapo}
+Z.~Xi et~al.
+\newblock \href{https://arxiv.org/abs/2510.18927}{BAPO: Stabilizing off-policy RL for LLMs via balanced policy optimization with adaptive clipping}.
+\newblock In \emph{ICLR}, 2026.
 
 \end{thebibliography}
 

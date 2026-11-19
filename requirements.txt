@@ -1,0 +1,5 @@
+# Versions the notebooks were last executed with (Python 3.12, October 2026).
+# The code uses only stable NumPy/Matplotlib APIs; on Colab the preinstalled versions work.
+numpy==2.5.4
+matplotlib==3.11.2
+ipywidgets==8.1.9  # optional: only the "Interactive version" cells use it

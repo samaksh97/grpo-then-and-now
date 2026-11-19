@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GRPO — Group Relative Policy Optimization, and Where Its Signal Breaks</title>
+<link href="vendor/katex/katex.min.css" rel="stylesheet"/>
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/contrib/auto-render.min.js"></script>
+<style>
+:root{
+  --bg:#08111f; --panel:#101d31; --panel2:#162943; --text:#eaf2ff; --muted:#9bb0ca;
+  --cyan:#58d8ff; --purple:#a78bfa; --green:#62e6a5; --orange:#ffb86b; --red:#ff7188; --border:#2a466b;
+}
+*{box-sizing:border-box}
+body{ margin:0;background:radial-gradient(circle at 75% 8%,#182c4a 0,#08111f 45%);
+  color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden; }
+code, .mono{ font-family:"JetBrains Mono", ui-monospace, monospace; background:#0b1626; padding:1px 5px; border-radius:5px; font-size:.9em; }
+.deck{height:100vh;position:relative}
+.slide{ position:absolute;inset:0;padding:5vh 8vw 8vh;
+  opacity:0;transform:translateX(30px) scale(.98);pointer-events:none;transition:.45s ease;overflow-y:auto; }
+.slide.active{opacity:1;transform:none;pointer-events:auto}
+.slide::-webkit-scrollbar{width:8px}
+.slide::-webkit-scrollbar-thumb{background:#233650;border-radius:8px}
+h1{font-size:clamp(2.5rem,6vw,6rem);line-height:1.02;margin:0 0 22px;font-weight:800}
+h2{font-size:clamp(1.6rem,3vw,2.8rem);margin:0 0 16px;font-weight:800}
+h3{color:var(--cyan);margin:0 0 8px;font-size:1.1rem;font-weight:700}
+p,li{font-size:clamp(1rem,1.25vw,1.15rem);line-height:1.55}
+.subtitle{font-size:1.35rem;color:var(--muted);max-width:900px;font-weight:500}
+.kicker{color:var(--cyan);font-weight:800;letter-spacing:.15em;text-transform:uppercase;font-size:.82rem;margin-bottom:6px;display:block}
+.card{ background:linear-gradient(145deg,rgba(22,41,67,.9),rgba(12,25,44,.9));
+  border:1px solid var(--border);border-radius:20px;padding:22px;box-shadow:0 18px 50px #0004; }
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center}
+@media(max-width:900px){.two{grid-template-columns:1fr}}
+.badge{display:inline-block;padding:7px 12px;border-radius:999px;background:#203a5e;color:var(--cyan);margin:4px 4px 0 0;font-size:.85rem;font-weight:600}
+.badge.macro{background:#1e3a52;color:#58d8ff}
+.badge.micro{background:#3a2f1e;color:#ffb86b}
+.badge.seq{background:#3a1e28;color:#ff7188}
+.good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--orange)}
+.plain{background:#0b1626;border-left:4px solid var(--green);padding:12px 16px;border-radius:0 10px 10px 0;margin:12px 0;font-size:1.02rem}
+.plain b{color:var(--green)}
+button{ border:0;border-radius:12px;padding:11px 17px;margin:5px 5px 0 0;
+  background:#24436b;color:white;font-weight:700;cursor:pointer;transition:.2s;font-size:.92rem; }
+button:hover{background:#356394;transform:translateY(-2px)}
+button.primary{background:linear-gradient(90deg,#287ea4,#6952b8)}
+button.ghost{background:transparent;border:1px solid var(--border)}
+button.gsel{background:#20344f}
+button.gsel.on{background:linear-gradient(90deg,#287ea4,#6952b8)}
+.controls{ position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:30;
+  background:#0e1b2dcc;border:1px solid #355579;border-radius:999px;padding:6px 12px;backdrop-filter:blur(12px);
+  display:flex;align-items:center;gap:2px; }
+#counter{color:var(--muted);padding:0 12px;font-size:.85rem;font-variant-numeric:tabular-nums}
+.progress{position:fixed;top:0;left:0;height:5px;background:linear-gradient(90deg,var(--cyan),var(--purple));z-index:40;width:0;transition:width .35s ease}
+.dots{position:fixed;left:24px;bottom:26px;display:flex;flex-direction:column;gap:6px;z-index:30}
+.dots .dot{width:7px;height:7px;border-radius:50%;background:#233650;cursor:pointer;transition:.2s}
+.dots .dot.active{background:var(--cyan);height:20px}
+.hint{position:fixed;top:16px;right:22px;font-size:.78rem;color:var(--muted);z-index:30;opacity:.85}
+svg{width:100%;max-height:400px;overflow:visible}
+.node{fill:#183454;stroke:#58d8ff;stroke-width:2}
+.node.goodnode{stroke:var(--green)}
+.node.badnode{stroke:var(--red)}
+.node.deadnode{stroke:#7f8c8d;opacity:.5}
+.svgtext{fill:#eef6ff;font-size:15px;font-weight:700;font-family:Inter,sans-serif}
+.ticktext{fill:#9bb0ca;font-size:12px;font-weight:500;font-family:Inter,system-ui,sans-serif}
+.axislabel{fill:#dbe7f7;font-size:13px;font-weight:700;font-family:Inter,system-ui,sans-serif}
+.legendtext{fill:#eef6ff;font-size:12.5px;font-weight:600;font-family:Inter,system-ui,sans-serif}
+.annot{fill:#c9d8eb;font-size:12px;font-weight:600;font-family:Inter,system-ui,sans-serif}
+.small{font-size:.92rem;color:var(--muted)}
+.mathbox{ background:#07101d;border-left:4px solid var(--purple);padding:12px 16px;border-radius:12px;margin:12px 0;overflow-x:auto }
+.refs{margin-top:14px;font-size:.76rem;color:#8aa0bd;border-top:1px solid #20344f;padding-top:6px;line-height:1.45}
+.refs b{color:#b7c8de}
+.glossary{font-size:.82rem;color:var(--muted);line-height:1.55;margin:0}
+.glossary b{color:var(--text)}
+.reflist{font-size:.86rem;line-height:1.5;color:#c9d8eb;columns:2;column-gap:36px}
+.reflist li{font-size:.86rem;break-inside:avoid;margin-bottom:6px}
+.reflist a{color:var(--cyan)}
+.mathwarn{position:fixed;top:40px;left:50%;transform:translateX(-50%);z-index:50;background:#3a1c22;border:1px solid var(--red);
+  color:#ffd7de;padding:10px 16px;border-radius:12px;font-size:.88rem;max-width:780px;line-height:1.45}
+@keyframes flow{ to { offset-distance: 100%; } }
+.flow-dot{ width:9px;height:9px;border-radius:50%;background:var(--cyan);offset-distance:0%;box-shadow:0 0 8px var(--cyan); }
+.flowpath-1{ offset-path: path("M180 120 H270"); animation: flow 1.6s linear infinite; }
+.flowpath-2a{ offset-path: path("M440 95 H520"); animation: flow 1.6s linear infinite; animation-delay:.3s; }
+.flowpath-2b{ offset-path: path("M440 145 H520"); animation: flow 1.6s linear infinite; animation-delay:.6s; background:var(--red); box-shadow:0 0 8px var(--red);}
+.loopback{ offset-path: path("M600 175 C600 235 95 235 95 168"); animation: flow 2.4s linear infinite; background:var(--purple); box-shadow:0 0 8px var(--purple);}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+td,th{padding:9px 12px;border-bottom:1px solid #28415e;text-align:left;vertical-align:top}
+th{color:var(--cyan);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
+.katex{text-transform:none;letter-spacing:normal}
+.quiz-answer{display:none;font-weight:700;margin-top:8px}
+.quiz-answer.show{display:block}
+.quiz-answer.correct{color:var(--green)}
+.quiz-answer.incorrect{color:var(--red)}
+.fragment{opacity:0;transform:translateY(8px);transition:all .45s ease}
+.fragment.visible{opacity:1;transform:translateY(0)}
+input[type=range]{width:100%;accent-color:var(--cyan);margin:6px 0}
+.readout{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap}
+.readout .box{background:#0b1626;border:1px solid var(--border);border-radius:10px;padding:8px 14px;text-align:center;min-width:92px}
+.readout .box .val{font-size:1.25rem;font-weight:800;font-variant-numeric:tabular-nums}
+.readout .box .lbl{font-size:.72rem;color:var(--muted);margin-top:2px}
+
+/* rollout chips for the interactive grading demo */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;cursor:pointer;
+  border:2px solid var(--green);background:#173a2c;min-width:112px;transition:.15s;font-size:.74rem;font-weight:700}
+.chip.wrong{border-color:var(--red);background:#3a1c22}
+.chip .rlabel{font-size:.68rem;font-weight:800;color:var(--muted)}
+.chip:hover{transform:translateY(-2px)}
+.status-chip{display:inline-block;padding:6px 14px;border-radius:999px;font-weight:800;font-size:.85rem;margin-top:8px}
+.status-chip.flows{background:#173a2c;color:var(--green)}
+.status-chip.wasted{background:#3a1c22;color:var(--red)}
+@media(max-height:800px){
+  .slide{padding:3vh 7vw 7vh}
+  h1{font-size:clamp(2.2rem,5vw,4.5rem);margin-bottom:12px}
+  h2{font-size:clamp(1.5rem,2.7vw,2.4rem);margin-bottom:10px}
+  h3{font-size:1rem;margin-bottom:5px}
+  p,li{font-size:clamp(.88rem,1.05vw,1rem);line-height:1.38}
+  .card{padding:16px;border-radius:16px}
+  .grid{gap:14px}.two{gap:20px}
+  .mathbox{padding:8px 12px;margin:8px 0}
+  svg{max-height:330px}
+}
+</style>
+<link href="assets/deck_common.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="deck">
+<div class="progress" id="progress"></div>
+<div class="hint">Space / → next · ← back · click a dot, or open <code>#N</code>, to jump to slide N</div>
+<!-- 1: TITLE -->
+<section class="slide active" data-slug="title">
+<span class="kicker">Orientation deck · about 15 minutes · start here</span>
+<h1>GRPO</h1>
+<p class="subtitle">
+<span style="color:var(--cyan)">Group Relative Policy Optimization</span>: how a group of sampled answers replaces PPO's learned critic —
+    and three places where the resulting learning signal breaks.
+  </p>
+<div class="card" style="margin-top:26px;max-width:940px">
+<p style="margin-top:0"><b>In one sentence:</b> for each prompt, sample a group of $G$ responses, score each with a verifier, standardize the rewards within the group, and update the policy with PPO's clipped objective so that above-average responses become more likely and below-average responses less likely. The group's mean reward replaces PPO's learned critic as the baseline.</p>
+<p class="small" style="margin-bottom:0"><b>Assumed background:</b> policies, rewards, and the idea of a policy gradient. The <a href="#policy-gradient">two refresher slides</a> cover policy gradients and PPO; skip them if you already know PPO.</p>
+</div>
+<p class="glossary" style="margin-top:20px;max-width:940px">
+<b>Acronyms in this deck.</b>
+<b>GRPO</b> Group Relative Policy Optimization (Shao et al., 2024) ·
+    <b>PPO</b> Proximal Policy Optimization (Schulman et al., 2017) ·
+    <b>RL</b> reinforcement learning ·
+    <b>RLHF</b> RL from human feedback (Ouyang et al., 2022) ·
+    <b>RLVR</b> RL with verifiable rewards (Lambert et al., 2024) ·
+    <b>SFT</b> supervised fine-tuning ·
+    <b>KL</b> Kullback–Leibler divergence ·
+    <b>GAE</b> generalized advantage estimation ·
+    DAPO, DisCO and S-GRPO are placed on <a href="#response-map">the response map</a>. Full references: last slide.
+  </p>
+<p class="small" style="margin-top:14px;max-width:940px">
+    <b>Why it matters.</b> GRPO was introduced in <a href="https://arxiv.org/abs/2402.03300" style="color:var(--cyan)" target="_blank"><b>DeepSeekMath</b></a> (Shao et al., 2024). It is used in the RL stages of <a href="https://arxiv.org/abs/2412.19437" style="color:var(--cyan)" target="_blank">DeepSeek-V3</a> and <a href="https://arxiv.org/abs/2501.12948" style="color:var(--cyan)" target="_blank">DeepSeek-R1</a> (DeepSeek-AI, 2024; 2025) and in <a href="https://arxiv.org/abs/2505.09388" style="color:var(--cyan)" target="_blank">Qwen3</a>'s reasoning RL (Qwen Team, 2025), and TRL, verl and OpenRLHF all implement it.
+  </p>
+</section>
+<!-- 2: WHY RL -->
+<section class="slide" data-slug="starting-point">
+<span class="kicker">The starting point</span>
+<h2>Why not just imitate correct answers?</h2>
+<div class="plain"><b>Supervised fine-tuning (SFT)</b> trains on fixed prompt–answer demonstrations by maximizing the likelihood of the demonstrated tokens. It never evaluates the outcome of what the model itself generates.</div>
+<p>That creates three limits for reasoning and code:</p>
+<div class="grid">
+<div class="card fragment"><h3>1 · Demonstration ceiling</h3><p class="small">SFT reinforces strategies present in its demonstrations; it does not directly search for a better unseen solution.</p></div>
+<div class="card fragment"><h3>2 · Many answers are right</h3><p class="small">Many token sequences implement the same correct behavior, but single-reference training penalizes valid alternatives.</p></div>
+<div class="card fragment"><h3>3 · Distribution shift</h3><p class="small">At generation time the policy conditions on its own prefixes, including mistakes that were absent from the demonstrations.</p></div>
+</div>
+
+<details class="more"><summary>Details</summary><div class="plain"><b>Reinforcement learning (RL)</b> changes the training signal: the model samples its own answer, a reward function scores the <b>outcome</b> (does the code compile, pass the tests, and run faster?), and training increases the probability of high-reward answers.</div></details></section>
+<!-- 3: THE VERIFIER -->
+<section class="slide" data-slug="verifier">
+<span class="kicker">Where the reward comes from</span>
+<h2>An executable verifier supplies the reward</h2>
+<div class="two">
+<div>
+<div class="plain"><b>An executable verifier</b> checks observable behavior instead of resemblance to one reference answer. Training on such programmatic rewards is called <b>RL with verifiable rewards (RLVR)</b>.</div>
+<p>Running example: the policy writes a GPU kernel (a small program that computes, e.g., a matrix product). We compile, test, and benchmark it:</p>
+<ul>
+<li>Fails to compile, or produces wrong numbers → <b class="bad">reward 0</b></li>
+<li>Correct and at least 1.2× faster than the PyTorch reference → <b class="good">reward 1</b></li>
+</ul>
+<div class="plain fragment"><b>The training loop:</b> sample attempts, score them, raise the probability of rewarded attempts and lower that of unrewarded ones, and repeat over many prompts. Verifiers are not infallible: an exploitable check becomes an optimization target (the reward-hacking demo in <code>02_failure_lab.ipynb</code> shows one).</div>
+</div>
+<div class="card">
+<svg aria-label="Diagram: task, policy, verifier, reward, update loop" role="img" viewbox="0 0 640 250">
+<defs>
+<marker id="arrow" markerheight="10" markerwidth="10" orient="auto" refx="8" refy="3">
+<path d="M0,0 L0,6 L9,3 z" fill="#58d8ff"></path>
+</marker>
+</defs>
+<rect class="node" height="70" rx="15" width="150" x="20" y="85"></rect>
+<text class="svgtext" text-anchor="middle" x="95" y="112">Task prompt</text>
+<text class="svgtext" font-size="12" text-anchor="middle" x="95" y="135">"make this run faster"</text>
+<path d="M175 120 H270" marker-end="url(#arrow)" stroke="#58d8ff" stroke-width="3"></path>
+<rect class="node" height="120" rx="15" width="155" x="280" y="60"></rect>
+<text class="svgtext" text-anchor="middle" x="357" y="100">Policy πθ</text>
+<text class="svgtext" font-size="12" text-anchor="middle" x="357" y="124">writes a kernel;</text>
+<text class="svgtext" font-size="12" text-anchor="middle" x="357" y="142">verifier runs it</text>
+<path d="M440 95 H520" marker-end="url(#arrow)" stroke="#62e6a5" stroke-width="3"></path>
+<path d="M440 145 H520" marker-end="url(#arrow)" stroke="#ff7188" stroke-width="3"></path>
+<text class="svgtext" fill="#62e6a5" text-anchor="middle" x="583" y="100">passes → 1</text>
+<text class="svgtext" fill="#ff7188" text-anchor="middle" x="583" y="150">fails → 0</text>
+<text class="svgtext" fill="#a78bfa" font-size="12" text-anchor="middle" x="357" y="222">update θ, then sample again</text>
+<circle class="flow-dot flowpath-1"></circle>
+<circle class="flow-dot flowpath-2a"></circle>
+<circle class="flow-dot flowpath-2b"></circle>
+<circle class="flow-dot loopback"></circle>
+</svg>
+<p class="small" style="text-align:center;margin-top:4px;">no learned reward model in this loop</p>
+</div>
+</div>
+<p class="refs"><b>RLVR</b>: term introduced with Tülu 3 (Lambert et al., 2024). <b>KernelBench</b>: Ouyang et al., ICML 2025 (task source for the running example).</p>
+</section>
+<!-- 4: REFRESHER 1 - POLICY GRADIENT -->
+<section class="slide" data-slug="policy-gradient">
+<span class="kicker">Refresher 1 of 2 · policy gradients</span>
+<h2>Policy gradient: make better-than-expected answers more likely</h2>
+<div class="two" style="align-items:start">
+<div>
+<p>For a prompt $s$ and an answer $a\sim\pi_\theta(\cdot\mid s)$ with reward $R$, the policy-gradient theorem (REINFORCE) gives</p>
+<div class="mathbox">$$\nabla_\theta J(\theta)=\mathbb{E}_{a\sim\pi_\theta}\big[(R-b)\,\nabla_\theta\log\pi_\theta(a\mid s)\big].$$</div>
+<ul>
+<li>$\nabla_\theta\log\pi_\theta(a\mid s)$ is the direction that makes answer $a$ more likely.</li>
+<li>$b$ is a <b>baseline</b>: any quantity that does not depend on $a$. It leaves the expected gradient unchanged, because $\mathbb{E}_{a}[\nabla_\theta\log\pi_\theta(a\mid s)]=0$, but it lowers the variance of the estimate.</li>
+<li>$A=R-b$ is the <b>advantage</b>. With $b=V(s)=\mathbb{E}[R\mid s]$, $A&gt;0$ means "better than expected for this prompt".</li>
+</ul>
+</div>
+
+</div>
+<details class="more"><summary>Details</summary><div class="card">
+<h3>Worked example</h3>
+<p class="small" style="margin-top:0">The policy solves this kernel task 40% of the time, so $V(s)=0.4$.</p>
+<table>
+<thead><tr><th>Outcome</th><th>Reward</th><th>Advantage</th><th>Effect on $\log\pi_\theta(a\mid s)$</th></tr></thead>
+<tbody>
+<tr><td>passes</td><td>1</td><td class="good">$+0.6$</td><td>increased</td></tr>
+<tr><td>fails</td><td>0</td><td class="bad">$-0.4$</td><td>decreased</td></tr>
+</tbody>
+</table>
+<p class="small" style="margin-bottom:0">With $b=0$ instead, failed answers would get zero weight and every passing answer would be pushed up by the full reward; the estimate is unbiased but much noisier. Notebook §1.3 measures the variance reduction.</p>
+</div></details><p class="refs"><b>REINFORCE</b>: Williams, 1992. <b>Policy-gradient theorem and baselines</b>: Sutton &amp; Barto, <i>Reinforcement Learning: An Introduction</i>, 2nd ed., 2018, ch. 13.</p>
+</section>
+<!-- 5: REFRESHER 2 - PPO -->
+<section class="slide figure-slide" data-slug="ppo-refresher">
+<span class="kicker sr-only">Refresher 2 of 2 · PPO</span>
+<h2 class="sr-only">PPO reuses each batch for several updates and clips the ratio</h2><figure class="fig"><img alt="PPO's clipped objective against the probability ratio r for a positive and a negative advantage: for A &gt; 0 the objective is flat beyond 1 + epsilon (1.28 with Clip-Higher), and for A &lt; 0 it is flat below 1 - epsilon, so the gradient there is zero." loading="lazy" src="../figures/set/F10_the_clipped_objective.png"/></figure><details class="more"><summary>Details and the interactive chart</summary><div class="two" style="align-items:start">
+<div>
+<p><b>Proximal Policy Optimization (PPO)</b> takes several gradient steps on rollouts sampled from a frozen copy $\pi_{\text{old}}$. The importance ratio corrects for the policy having moved, and clipping removes the incentive to move it far:</p>
+<div class="mathbox">$$r(\theta)=\frac{\pi_\theta(a\mid s)}{\pi_{\text{old}}(a\mid s)},\qquad L^{\text{CLIP}}(\theta)=\mathbb{E}\Big[\min\big(r(\theta)A,\ \operatorname{clip}(r(\theta),1-\varepsilon,1+\varepsilon)A\big)\Big]$$</div>
+<ul>
+<li>$A&gt;0$: the objective grows with $r$ only up to $1+\varepsilon$. Beyond that it is flat, so that sample's gradient is <b>zero</b>.</li>
+<li>$A&lt;0$: the objective grows as $r$ falls, but only down to $1-\varepsilon$.</li>
+<li>In RLHF, $A$ comes from a learned <b>critic</b> $V_\psi(s)$ (typically via GAE), and a KL penalty keeps $\pi_\theta$ close to a frozen reference policy.</li>
+</ul>
+</div>
+<div class="card">
+<svg aria-label="PPO clipped objective versus probability ratio for positive and negative advantage" id="ppoSvg" role="img" viewbox="0 0 540 345"></svg>
+<p class="small" style="text-align:center;margin:4px 0 0;">$\varepsilon=0.2$; the shaded band is the clip range $[1-\varepsilon,\,1+\varepsilon]$ (cf. Fig. 1 of Schulman et al., 2017).</p>
+</div>
+</div></details>
+
+<p class="refs"><b>PPO</b>: Schulman et al., 2017. <b>GAE</b>: Schulman et al., ICLR 2016. <b>RLHF with PPO</b>: Ouyang et al., 2022.</p>
+</section>
+<!-- 6: PPO 4 MODELS -->
+<section class="slide figure-slide" data-slug="model-roles">
+<span class="kicker sr-only">What GRPO simplifies</span>
+<h2 class="sr-only">PPO-based RLHF uses four model roles</h2><figure class="fig"><img alt="Side-by-side model roles: PPO-based RLHF keeps four models (policy, reference, reward model, critic); GRPO with RLVR keeps two, replacing the reward model with a verifier program and the critic with the group's mean reward." loading="lazy" src="../figures/set/F02_ppo_rlhf_vs_grpo_rlvr.png"/></figure><details class="more"><summary>Details and the interactive chart</summary><div class="two">
+<div>
+<p>The standard PPO-based RLHF recipe combines:</p>
+<ul>
+<li><b>Policy</b> $\pi_\theta$ — generates responses and is updated</li>
+<li><b>Reference policy</b> $\pi_{\text{ref}}$ — frozen; anchors the update through a KL penalty</li>
+<li><b class="warn">Learned reward model</b> — scores each response</li>
+<li><b class="warn">Learned critic</b> $V_\psi$ — estimates the baseline; trained alongside the policy</li>
+</ul>
+<div class="plain">These roles create <b>substantial memory and training overhead</b>, although the exact cost depends on precision, sharding, offloading, and which models are trained. Learned reward models can also contain exploitable scoring shortcuts.</div>
+</div>
+<div class="card">
+<svg aria-label="Four model roles in PPO-based RLHF" role="img" viewbox="0 0 520 300">
+<rect class="node" height="66" rx="14" width="200" x="40" y="30"></rect>
+<text class="svgtext" text-anchor="middle" x="140" y="58">Policy</text>
+<text class="svgtext" fill="#62e6a5" font-size="12" text-anchor="middle" x="140" y="80">trained</text>
+<rect class="node" height="66" rx="14" width="200" x="280" y="30"></rect>
+<text class="svgtext" text-anchor="middle" x="380" y="58">Reference policy</text>
+<text class="svgtext" fill="#9bb0ca" font-size="12" text-anchor="middle" x="380" y="80">frozen KL anchor</text>
+<rect class="node badnode" height="66" rx="14" width="200" x="40" y="128"></rect>
+<text class="svgtext" fill="#ffb86b" text-anchor="middle" x="140" y="156">Reward model</text>
+<text class="svgtext" fill="#ff7188" font-size="12" text-anchor="middle" x="140" y="178">learned score</text>
+<rect class="node badnode" height="66" rx="14" width="200" x="280" y="128"></rect>
+<text class="svgtext" fill="#a78bfa" text-anchor="middle" x="380" y="156">Critic</text>
+<text class="svgtext" fill="#ff7188" font-size="12" text-anchor="middle" x="380" y="178">learned baseline</text>
+<text class="svgtext" fill="#ff7188" font-size="17" text-anchor="middle" x="260" y="250">4 model roles to maintain</text>
+</svg>
+</div>
+</div></details>
+
+</section>
+<!-- 7: GRPO 2 MODELS -->
+<section class="slide figure-slide" data-slug="grpo-step">
+<span class="kicker sr-only">GRPO's change</span>
+<h2 class="sr-only">Remove the critic: the group supplies the baseline</h2><figure class="fig"><img alt="Flow diagram of one GRPO step: a prompt goes to the frozen policy, which samples a group of 8 rollouts (2 pass, 6 fail); a verifier scores them 1 or 0; the group-relative advantages are +1.73 for passes and -0.58 for fails; a clipped policy update makes passing rollouts more likely, and the updated policy samples the next batch." loading="lazy" src="../figures/set/F01_anatomy_of_one_grpo_step.png"/></figure><details class="more"><summary>Details and the interactive chart</summary><div class="two">
+<div>
+<p>For each prompt $q$, GRPO samples a group $o_1,\dots,o_G\sim\pi_{\text{old}}(\cdot\mid q)$, scores each response, and standardizes the rewards within the group:</p>
+<div class="mathbox">$$\hat A_i=\frac{R_i-\operatorname{mean}(R_1,\dots,R_G)}{\operatorname{std}(R_1,\dots,R_G)}$$</div>
+<p>Every token of response $o_i$ uses this same $\hat A_i$ inside PPO's clipped objective (the full objective is in <a href="dapo_intro.html#grpo-objective">the DAPO deck</a>). Two distinct simplifications follow:</p>
+<ul>
+<li><b>GRPO</b> replaces the learned critic with the group mean — an algorithmic change.</li>
+<li>On <b>verifiable tasks</b> (RLVR), a programmatic checker replaces the learned reward model — a choice of reward source, independent of GRPO.</li>
+</ul>
+<div class="plain"><b>Analogy:</b> runners in the same heat are ranked against each other, not against a predicted finishing time.</div>
+</div>
+<div class="card">
+<svg aria-label="GRPO keeps the policy and reference policy and removes the critic" role="img" viewbox="0 0 520 300">
+<rect class="node goodnode" height="76" rx="14" width="200" x="40" y="40"></rect>
+<text class="svgtext" text-anchor="middle" x="140" y="74">Policy</text>
+<text class="svgtext" fill="#62e6a5" font-size="12" text-anchor="middle" x="140" y="96">trained</text>
+<rect class="node" height="76" rx="14" width="200" x="280" y="40"></rect>
+<text class="svgtext" text-anchor="middle" x="380" y="74">Reference policy</text>
+<text class="svgtext" fill="#9bb0ca" font-size="12" text-anchor="middle" x="380" y="96">frozen KL anchor</text>
+<rect class="node deadnode" height="58" rx="14" width="200" x="40" y="150"></rect>
+<text class="svgtext" fill="#7f8c8d" text-anchor="middle" x="140" y="184">Reward model</text>
+<line stroke="#ff7188" stroke-width="3" x1="52" x2="228" y1="179" y2="179"></line>
+<rect class="node deadnode" height="58" rx="14" width="200" x="280" y="150"></rect>
+<text class="svgtext" fill="#7f8c8d" text-anchor="middle" x="380" y="184">Critic</text>
+<line stroke="#ff7188" stroke-width="3" x1="292" x2="468" y1="179" y2="179"></line>
+<text class="svgtext" fill="#62e6a5" font-size="16" text-anchor="middle" x="260" y="240">GRPO: no critic (group baseline)</text>
+<text class="svgtext" fill="#62e6a5" font-size="16" text-anchor="middle" x="260" y="264">RLVR: no reward model (verifier)</text>
+</svg>
+</div>
+</div></details>
+
+<p class="refs"><b>GRPO</b>: Shao et al., 2024 (DeepSeekMath); DeepSeek-AI, 2025 (DeepSeek-R1).</p>
+</section>
+<!-- 8: GRADE IT YOURSELF (INTERACTIVE) -->
+<section class="slide" data-slug="score-rollouts">
+<span class="kicker">Try it</span>
+<h2>Score 8 rollouts and compute their advantages</h2>
+<div class="two">
+<div>
+<p>Eight rollouts for the same kernel task: two are correct and fast (reward 1), six fail (reward 0). The chart shows each rollout's advantage $\hat A_i$. <b>Click a rollout</b> to flip its reward and recompute the group statistics.</p>
+<div class="chips" id="advChips"></div>
+<div class="readout">
+<div class="box"><div class="val" id="advMean">0.25</div><div class="lbl">mean reward</div></div>
+<div class="box"><div class="val" id="advStd">0.43</div><div class="lbl">std of rewards</div></div>
+<div class="box"><div class="val" id="advNpos">2</div><div class="lbl"># correct</div></div>
+</div>
+<div id="advStatus"></div>
+<p class="small fragment" style="margin-top:10px;">With 2 of 8 correct, the mean reward is 0.25 and the standard deviation is 0.433. Each correct rollout gets $\hat A=(1-0.25)/0.433=+1.73$ and each incorrect one gets $(0-0.25)/0.433=-0.58$. The advantages sum to zero ($2\times1.73=6\times0.58$), so the policy-gradient step weights each rollout's $\nabla_\theta\log\pi_\theta$ by $+1.73$ or $-0.58$: the two correct rollouts become more likely and the six incorrect ones less likely. Now give all 8 the same reward: the standard deviation is 0, every advantage is set to 0, and this group contributes no gradient. That is the first failure mode.</p>
+</div>
+<div class="card">
+<svg aria-label="Bar chart of the group-relative advantage of each rollout" id="advChart" role="img" viewbox="0 0 600 320"></svg>
+<p class="small" style="text-align:center;margin:4px 0 0;">bars: advantage $\hat A_i$ of each rollout (fixed axis from $-3$ to $+3$) · <span class="good">green</span> positive, <span class="bad">red</span> negative, grey zero</p>
+</div>
+</div>
+</section>
+<!-- 9: THREE FAILURE MODES -->
+<section class="slide" data-slug="three-failures">
+<span class="kicker">Where the signal breaks</span>
+<h2>Three places where GRPO's learning signal breaks</h2>
+<div class="plain"><b>GRPO in one recipe:</b> sample $G$ rollouts per prompt, standardize their rewards into advantages, and maximize PPO's clipped objective — averaged first over each response's tokens and then over the $G$ responses — with a KL penalty toward a reference policy. Three of these ingredients have characteristic failure modes:</div>
+<div class="grid" style="margin-top:8px;">
+<div class="card fragment"><span class="badge macro">failure 1 · the group baseline</span><h3 style="margin-top:8px">Zero-advantage groups</h3><p class="small">If all $G$ rollouts get the same reward, every advantage is 0 and the group contributes no gradient — even though its rollouts were generated.</p></div>
+<div class="card fragment"><span class="badge micro">failure 2 · ratio clipping</span><h3 style="margin-top:8px">Least headroom for rare tokens</h3><p class="small">The clip bounds the ratio $\pi_\theta/\pi_{\text{old}}$, so a token with small $p_{\text{old}}$ can gain only about $\varepsilon\,p_{\text{old}}$ in probability before its gradient is zeroed. The DAPO paper links this to entropy collapse.</p></div>
+<div class="card fragment"><span class="badge seq">failure 3 · loss aggregation</span><h3 style="margin-top:8px">Length-dependent token weights</h3><p class="small">Averaging within each response first gives every token of $o_i$ the weight $1/(G\,|o_i|)$, so tokens in short responses count more than tokens in long ones.</p></div>
+</div>
+
+<details class="more"><summary>Details</summary><p class="small" style="text-align:center;margin-top:12px;">The next three slides isolate each mechanism with a small calculation.</p></details></section>
+<!-- 10: FAILURE 1 (INTERACTIVE) -->
+<section class="slide" data-slug="failure-zero-gradient">
+<span class="kicker">Failure 1 · try it</span>
+<h2>Groups with identical rewards contribute no gradient</h2>
+<div class="two">
+<div>
+<p>A group yields non-zero advantages only if its rewards differ. With binary rewards and per-rollout success probability $p$, a group of size $G$ is informative with probability</p>
+<div class="mathbox">$$P(\text{informative})=1-p^{G}-(1-p)^{G}.$$</div>
+<p>As the policy masters a prompt ($p\to1$) most of its groups become all-correct. Choose $G$, then drag $p$:</p>
+<div style="margin:6px 0;">
+<button class="gsel" data-g="4">G = 4</button>
+<button class="gsel on" data-g="8">G = 8</button>
+<button class="gsel" data-g="16">G = 16</button>
+<button class="gsel" data-g="32">G = 32</button>
+<button class="gsel" data-g="64">G = 64</button>
+</div>
+<input aria-label="per-rollout success probability" id="zgP" max="1" min="0" step="0.01" type="range" value="0.95"/>
+<div class="readout">
+<div class="box"><div class="val" id="zgPval">0.95</div><div class="lbl">success probability p</div></div>
+<div class="box"><div class="val good" id="zgInfo">-</div><div class="lbl">informative groups</div></div>
+<div class="box"><div class="val bad" id="zgWaste">-</div><div class="lbl">zero-gradient groups</div></div>
+</div>
+<p class="small fragment" style="margin-top:10px;">At $p=0.95$ and $G=8$, $0.95^{8}\approx66\%$ of groups are all-correct and contribute zero gradient. Larger groups help only partly. <b>DAPO's Dynamic Sampling</b> over-samples prompts and drops all-correct and all-wrong groups, so that every update uses a full batch of informative groups (<a href="dapo_intro.html#dynamic-sampling">DAPO deck</a>).</p>
+</div>
+<div class="card">
+<svg aria-label="Probability that a group is informative versus success probability" id="zgSvg" role="img" viewbox="0 0 560 345"></svg>
+</div>
+</div>
+</section>
+<!-- 11: FAILURE 2 (STATIC) -->
+<section class="slide figure-slide" data-slug="failure-clip-headroom">
+<span class="kicker sr-only">Failure 2</span>
+<h2 class="sr-only">Ratio clipping gives low-probability tokens the least headroom</h2><figure class="fig"><img alt="Maximum probability gain before clipping against a token's old probability, for epsilon = 0.2 and DAPO's epsilon_high = 0.28: a token at p_old = 0.01 can gain only 0.002, a token at 0.5 can gain 0.10, and the gain peaks at p_old = 1/(1 + epsilon)." loading="lazy" src="../figures/set/F05_clip_headroom.png"/></figure><details class="more"><summary>Details and the interactive chart</summary><div class="two">
+<div>
+<p>For a token with positive advantage, the clipped objective stops increasing once $\pi_\theta/\pi_{\text{old}}$ exceeds $1+\varepsilon$, which zeroes that token's gradient. In probability units, the headroom before this happens is</p>
+<div class="mathbox">$$\Delta p_{\max}=\min\big((1+\varepsilon)\,p_{\text{old}},\ 1\big)-p_{\text{old}}.$$</div>
+<p>The headroom is <b>non-monotonic</b> in $p_{\text{old}}$: it grows as $\varepsilon\,p_{\text{old}}$ until $(1+\varepsilon)\,p_{\text{old}}$ reaches 1 at $p_{\text{old}}=1/(1+\varepsilon)$, then shrinks as $1-p_{\text{old}}$ because a probability cannot exceed 1.</p>
+<div class="plain">With $\varepsilon=0.2$, a rare token at $p_{\text{old}}=0.01$ can gain at most $0.002$, while a token at $p_{\text{old}}=0.5$ can gain $0.10$ — 50× more. Rare but useful tokens therefore struggle to become likely; the DAPO paper reports this as a cause of entropy collapse. <b>Clip-Higher</b> raises only the upper bound ($\varepsilon_{\text{high}}=0.28$), which gives rare tokens 1.4× more headroom.</div>
+</div>
+<div class="card">
+<svg aria-label="Maximum probability gain before clipping versus old token probability" id="headSvg" role="img" viewbox="0 0 560 345"></svg>
+</div>
+</div></details>
+
+<p class="refs"><b>Clip-Higher and entropy collapse</b>: Yu et al., 2025 (DAPO), §3.1. Hands-on: <code>02_failure_lab.ipynb</code> §2 and <code>dapo_four_fixes.ipynb</code> §1.</p>
+</section>
+<!-- 12: FAILURE 3 (STATIC) -->
+<section class="slide figure-slide" data-slug="failure-length-weighting">
+<span class="kicker sr-only">Failure 3</span>
+<h2 class="sr-only">Sample-level averaging gives short responses larger per-token weight</h2><figure class="fig"><img alt="Per-token weight against response length on log axes for a group of 8 in which seven responses have 200 tokens: GRPO's sample-level weight falls as one over the length, so a 20-token answer weighs 10 times more per token, while DAPO's token-level weight and Dr. GRPO's constant stay nearly flat." loading="lazy" src="../figures/set/F06_per_token_weight_vs_length.png"/></figure><details class="more"><summary>Details and the interactive chart</summary><div class="two">
+<div>
+<p>GRPO averages each response's token losses ($1/|o_i|$) and then averages over the $G$ responses ($1/G$). Every token of response $o_i$ therefore has weight</p>
+<div class="mathbox">$$w_{\text{sample}}(o_i)=\frac{1}{G\,|o_i|}\qquad\text{versus}\qquad w_{\text{token}}=\frac{1}{\sum_{j=1}^{G}|o_j|}\ \ \text{(DAPO)}.$$</div>
+<p>For equal advantages, each token of a 20-token response gets 10× the weight of each token of a 200-token response, while every response gets the same total weight $1/G$ regardless of its length.</p>
+<div class="plain">Consequences: long correct derivations are under-weighted per token, and long incorrect responses are penalized less per token — Dr. GRPO identifies the latter as a bias that lets incorrect responses grow longer. <b>DAPO's token-level loss</b> gives every token in the group the same weight; <b>Dr. GRPO</b> divides by a constant instead.</div>
+</div>
+<div class="card">
+<svg aria-label="Per-token loss weight versus response length on log-log axes" id="lenSvg" role="img" viewbox="0 0 560 345"></svg>
+<p class="small" style="text-align:center;margin:4px 0 0;">group of $G=8$: seven responses of 200 tokens plus one response whose length varies</p>
+</div>
+</div></details>
+
+<p class="refs"><b>Token-level loss</b>: Yu et al., 2025 (DAPO), §3.3. <b>Response-level length bias</b>: Liu et al., 2025 (Dr. GRPO), §3.1. Hands-on: <code>02_failure_lab.ipynb</code> §3.</p>
+</section>
+<!-- 13: RESPONSE MAP -->
+<section class="slide figure-slide" data-slug="response-map">
+<span class="kicker sr-only">The response map</span>
+<h2 class="sr-only">Each failure mode maps to a 2025 revision of one GRPO component</h2><figure class="fig"><img alt="Table mapping each GRPO component (which groups enter the batch, clip bounds, what the clip does, ratio granularity, loss aggregation, advantage normalization, combining negatives, length in the reward, rollouts and reward shape, entropy control) to the failure it targets, the method taught in depth (DAPO, DisCO, S-GRPO) and later revisions on the map (DCPO, BAPO, CISPO, GSPO, Dr. GRPO, Clip-Cov and KL-Cov)." loading="lazy" src="../figures/set/F13_design_space_map.png"/></figure><details class="more"><summary>Details</summary><div class="plain">These methods are branches in a design space, not a linear chain of replacements: each edits a different part of the recipe.</div><table style="margin-top:8px;">
+<thead><tr><th>Failure mode</th><th>Component changed</th><th>Method · change</th></tr></thead>
+<tbody>
+<tr><td>Zero-advantage groups</td><td>which groups enter the batch</td><td><b>DAPO</b> Dynamic Sampling · over-sample, drop all-correct and all-wrong groups, refill the batch</td></tr>
+<tr><td>Least headroom for rare tokens</td><td>ratio clipping</td><td><b>DAPO</b> Clip-Higher · raise only the upper bound ($\varepsilon_{\text{high}}=0.28$)</td></tr>
+<tr><td>Length-dependent token weights</td><td>loss aggregation</td><td><b>DAPO</b> token-level loss · normalize by $\sum_j|o_j|$</td></tr>
+<tr><td>Truncated answers scored as wrong</td><td>reward</td><td><b>DAPO</b> overlong filtering and soft overlong punishment</td></tr>
+<tr><td>Difficulty-dependent weight $\sqrt{p(1-p)}$</td><td>advantage normalization</td><td><b>DisCO</b> · remove the weight; discriminative objective with a KL constraint</td></tr>
+<tr><td>Overthinking after a correct answer</td><td>rollouts and reward</td><td><b>S-GRPO</b> · serial exits along one chain of thought with decaying rewards</td></tr>
+</tbody>
+</table><h3>Later revisions of the same components (October 2026)</h3><p>The failure-to-fix lens extends to newer work: for each method, ask which term of the GRPO objective it edits and which failure it targets. Examples (status as of October 2026; not exhaustive):</p><details class="more"><summary>Details</summary><table>
+<thead><tr><th>Component</th><th>Method</th><th>What it changes</th></tr></thead>
+<tbody>
+<tr><td>Advantage and length normalization</td><td><b>Dr. GRPO</b> (Liu et al., 2025)</td><td>Removes the per-group $\operatorname{std}$ division (which up-weights very easy and very hard questions) and the $1/|o_i|$ factor (which penalizes long incorrect responses less), dividing by a constant instead.</td></tr>
+<tr><td>Ratio granularity</td><td><b>GSPO</b> (Zheng et al., 2025)</td><td>Defines the importance ratio on the whole sequence likelihood and clips at the sequence level instead of per token.</td></tr>
+<tr><td>What gets clipped</td><td><b>CISPO</b> (MiniMax, 2025)</td><td>Clips the importance-sampling weight instead of dropping the clipped tokens' gradients.</td></tr>
+<tr><td>Adaptive clip bounds</td><td><b>DCPO</b> (Yang et al., 2025); <b>BAPO</b> (Xi et al., ICLR 2026)</td><td>Bounds that widen for low-probability tokens (DCPO), or that adapt to rebalance positive- and negative-advantage contributions and preserve entropy (BAPO).</td></tr>
+<tr><td>Entropy control</td><td><b>Clip-Cov / KL-Cov</b> (Cui et al., 2025)</td><td>Restrict updates of the tokens whose log-probability covaries most with their advantage, the main driver of entropy decline.</td></tr>
+</tbody>
+</table><p class="small" style="margin-top:10px;"><code>02_failure_lab.ipynb</code> (Appendix D) reproduces Dr. GRPO's two normalization changes on a toy group and compares the per-question weights of GRPO, Dr. GRPO and DisCO.</p></details><p class="refs"><b>GSPO</b> Group Sequence Policy Optimization · <b>CISPO</b> Clipped IS-weight Policy Optimization (introduced with MiniMax-M1) · <b>DCPO</b> Dynamic Clipping Policy Optimization · <b>BAPO</b> Balanced Policy Optimization with Adaptive Clipping.</p></details>
+
+
+<p class="refs"><b>DAPO</b> Decoupled Clip and Dynamic sAmpling Policy Optimization (Yu et al., 2025) · <b>DisCO</b> Discriminative Constrained Optimization (Li et al., 2025) · <b>S-GRPO</b> Serial-Group Decaying-Reward Policy Optimization (Dai et al., 2025); all NeurIPS 2025. Each has its own deck: <a href="dapo_intro.html" style="color:var(--cyan)">DAPO</a> · <a href="disco_intro.html" style="color:var(--cyan)">DisCO</a> · <a href="sgrpo_intro.html" style="color:var(--cyan)">S-GRPO</a>.</p>
+</section>
+<!-- 14: BEYOND THIS GUIDE -->
+
+<!-- 15: QUIZ -->
+<section class="slide" data-slug="check">
+<span class="kicker">Check your understanding</span>
+<h2>Can you explain GRPO in your own words?</h2>
+<div class="grid">
+<div class="card">
+<p><b>Question 1:</b> What provides GRPO's baseline?</p>
+<button onclick="answer('q1','group')">The mean reward of the group</button>
+<button onclick="answer('q1','rm')">A separately trained critic</button>
+<p class="quiz-answer" id="q1"></p>
+</div>
+<div class="card">
+<p><b>Question 2:</b> In PPO's clipped objective with $A&gt;0$, what happens once the ratio exceeds $1+\varepsilon$?</p>
+<button onclick="answer('q2','zero')">That sample's gradient becomes zero</button>
+<button onclick="answer('q2','flip')">The advantage changes sign</button>
+<p class="quiz-answer" id="q2"></p>
+</div>
+<div class="card">
+<p><b>Question 3:</b> When does a group contribute zero gradient?</p>
+<button onclick="answer('q3','tie')">When all rollouts get the same reward</button>
+<button onclick="answer('q3','mix')">When some pass and some fail</button>
+<p class="quiz-answer" id="q3"></p>
+</div>
+<div class="card">
+<p><b>Question 4:</b> Why does a symmetric ratio clip limit exploration?</p>
+<button onclick="answer('q4','abs')">A rare token's headroom $\varepsilon\,p_{\text{old}}$ is tiny</button>
+<button onclick="answer('q4','kl')">The KL penalty is too weak</button>
+<p class="quiz-answer" id="q4"></p>
+</div>
+</div>
+</section>
+<!-- 16: TAKEAWAY -->
+<section class="slide" data-slug="summary">
+<span class="kicker">Summary</span>
+<h2>GRPO learns only from reward differences within a group</h2>
+<div class="card" style="margin-top:8px;text-align:center">
+<p style="font-size:1.3rem;margin:0;">
+<b>GRPO's learning signal is the reward contrast inside each group.</b> If every rollout in a group gets the same reward — or if the verifier cannot distinguish good answers from bad ones — that group contributes no useful gradient.
+    </p>
+</div>
+<div class="grid" style="margin-top:20px;">
+<div class="card"><h3 class="good">Why it is used</h3><p class="small">It removes PPO's learned critic, and on verifiable tasks a rule-based checker can also replace the learned reward model. Fewer models must be trained and held in memory than in PPO-based RLHF.</p></div>
+<div class="card"><h3 class="bad">Where it breaks</h3><p class="small">Zero-advantage groups, clipping that limits low-probability tokens, and length-dependent token weights — plus the difficulty weighting and overthinking covered in the DisCO and S-GRPO decks.</p></div>
+</div>
+
+
+<details class="more"><summary>Details</summary><p style="text-align:center;margin-top:18px;"><b>Next →</b> run <a href="../notebook/01_grpo_core.ipynb" style="color:var(--cyan)">01_grpo_core.ipynb</a>, then §1–4 of <a href="../notebook/02_failure_lab.ipynb" style="color:var(--cyan)">02_failure_lab.ipynb</a> and Exercises 1 and 6 of <a href="../notebook/03_exercises.ipynb" style="color:var(--cyan)">03_exercises.ipynb</a> (about 50 min including this deck). Optional deep dives, in order: <a href="dapo_intro.html" style="color:var(--cyan)">DAPO</a> → <a href="disco_intro.html" style="color:var(--cyan)">DisCO</a> → <a href="sgrpo_intro.html" style="color:var(--cyan)">S-GRPO</a>.</p><p class="small" style="text-align:center;margin-top:8px;">
+    Go deeper →
+    <a href="../notebook/01_grpo_core.ipynb" style="color:var(--cyan)">the hands-on notebook</a> ·
+    <a href="dapo_intro.html" style="color:var(--cyan)">DAPO</a> ·
+    <a href="disco_intro.html" style="color:var(--cyan)">DisCO</a> ·
+    <a href="sgrpo_intro.html" style="color:var(--cyan)">S-GRPO</a>
+</p></details></section>
+<!-- 17: REFERENCES -->
+<section class="slide" data-slug="references">
+<span class="kicker">References</span>
+<h2>Sources cited in this deck</h2>
+<ol class="reflist">
+<li>Z. Shao et al. <a href="https://arxiv.org/abs/2402.03300" target="_blank">DeepSeekMath: Pushing the limits of mathematical reasoning in open language models</a>. arXiv:2402.03300, 2024. (GRPO)</li>
+<li>DeepSeek-AI. <a href="https://arxiv.org/abs/2501.12948" target="_blank">DeepSeek-R1: Incentivizing reasoning capability in LLMs via reinforcement learning</a>. arXiv:2501.12948, 2025.</li>
+<li>DeepSeek-AI. <a href="https://arxiv.org/abs/2412.19437" target="_blank">DeepSeek-V3 technical report</a>. arXiv:2412.19437, 2024.</li>
+<li>Qwen Team. <a href="https://arxiv.org/abs/2505.09388" target="_blank">Qwen3 technical report</a>. arXiv:2505.09388, 2025.</li>
+<li>J. Schulman et al. <a href="https://arxiv.org/abs/1707.06347" target="_blank">Proximal policy optimization algorithms</a>. arXiv:1707.06347, 2017. (PPO)</li>
+<li>J. Schulman et al. <a href="https://arxiv.org/abs/1506.02438" target="_blank">High-dimensional continuous control using generalized advantage estimation</a>. ICLR, 2016. (GAE)</li>
+<li>L. Ouyang et al. <a href="https://arxiv.org/abs/2203.02155" target="_blank">Training language models to follow instructions with human feedback</a>. NeurIPS, 2022. (RLHF)</li>
+<li>N. Lambert et al. <a href="https://arxiv.org/abs/2411.15124" target="_blank">Tülu 3: Pushing frontiers in open language model post-training</a>. arXiv:2411.15124, 2024. (RLVR)</li>
+<li>R. J. Williams. Simple statistical gradient-following algorithms for connectionist reinforcement learning. <i>Machine Learning</i> 8:229–256, 1992. (REINFORCE)</li>
+<li>R. S. Sutton and A. G. Barto. <i>Reinforcement Learning: An Introduction</i>, 2nd ed. MIT Press, 2018.</li>
+<li>Q. Yu et al. <a href="https://arxiv.org/abs/2503.14476" target="_blank">DAPO: An open-source LLM reinforcement learning system at scale</a>. NeurIPS, 2025.</li>
+<li>G. Li et al. <a href="https://arxiv.org/abs/2505.12366" target="_blank">DisCO: Reinforcing large reasoning models with discriminative constrained optimization</a>. NeurIPS, 2025.</li>
+<li>M. Dai, C. Yang and Q. Si. <a href="https://arxiv.org/abs/2505.07686" target="_blank">S-GRPO: Early exit via reinforcement learning in reasoning models</a>. NeurIPS, 2025.</li>
+<li>Z. Liu et al. <a href="https://arxiv.org/abs/2503.20783" target="_blank">Understanding R1-Zero-like training: A critical perspective</a>. arXiv:2503.20783, 2025. (Dr. GRPO)</li>
+<li>C. Zheng et al. <a href="https://arxiv.org/abs/2507.18071" target="_blank">Group sequence policy optimization</a>. arXiv:2507.18071, 2025. (GSPO)</li>
+<li>MiniMax. <a href="https://arxiv.org/abs/2506.13585" target="_blank">MiniMax-M1: Scaling test-time compute efficiently with lightning attention</a>. arXiv:2506.13585, 2025. (CISPO)</li>
+<li>S. Yang et al. <a href="https://arxiv.org/abs/2509.02333" target="_blank">DCPO: Dynamic clipping policy optimization</a>. arXiv:2509.02333, 2025.</li>
+<li>Z. Xi et al. <a href="https://arxiv.org/abs/2510.18927" target="_blank">BAPO: Stabilizing off-policy reinforcement learning for LLMs via balanced policy optimization with adaptive clipping</a>. ICLR, 2026.</li>
+<li>G. Cui et al. <a href="https://arxiv.org/abs/2505.22617" target="_blank">The entropy mechanism of reinforcement learning for reasoning language models</a>. arXiv:2505.22617, 2025. (Clip-Cov, KL-Cov)</li>
+<li>A. Ouyang et al. <a href="https://proceedings.mlr.press/v267/ouyang25a.html" target="_blank">KernelBench: Can LLMs write efficient GPU kernels?</a> ICML, 2025.</li>
+</ol>
+</section>
+</div>
+<div class="dots" id="dots"></div>
+<div class="controls">
+<button aria-label="previous slide" class="ghost" onclick="prev()">←</button>
+<span id="counter">1 / 17</span>
+<button class="primary" onclick="next()">Next →</button>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  if (window.renderMathInElement) {
+    renderMathInElement(document.body, {
+      delimiters: [
+        {left: "$$", right: "$$", display: true},
+        {left: "\\(", right: "\\)", display: false},
+        {left: "$", right: "$", display: false}
+      ],
+      throwOnError: false
+    });
+  } else {
+    showMathWarning();
+  }
+  init();
+});
+
+/* Shown only if the bundled KaTeX files could not be loaded (e.g. the deck was opened without slides/vendor/). */
+function showMathWarning(){
+  const w = document.createElement('div');
+  w.className = 'mathwarn';
+  w.innerHTML = '<b>Equations cannot be rendered:</b> this copy of the deck could not load its math library from '
+    + '<code>slides/vendor/katex/</code>. Open the deck from the fully extracted folder, or use the self-contained decks in the release ZIP.';
+  document.body.appendChild(w);
+}
+
+let index = 0, slides = [], dots = [];
+function fragmentsOf(i){ return Array.from(slides[i].querySelectorAll(".fragment")); }
+function update(){
+  slides.forEach((s,i)=>s.classList.toggle('active', i===index));
+  dots.forEach((d,i)=>d.classList.toggle('active', i===index));
+  document.getElementById('counter').textContent = (index+1)+' / '+slides.length;
+  document.getElementById('progress').style.width = ((index+1)/slides.length*100)+'%';
+  try { history.replaceState(null, '', '#'+(index+1)); } catch (e) { /* some file:// contexts forbid it */ }
+}
+function next(){
+  const pending = fragmentsOf(index).filter(f => !f.classList.contains('visible'));
+  if (pending.length){ pending[0].classList.add('visible'); return; }
+  if (index < slides.length-1){ index++; update(); }
+}
+function prev(){ if (index>0){ index--; update(); fragmentsOf(index).forEach(f=>f.classList.add('visible')); } }
+function goTo(i){ index=Math.max(0,Math.min(slides.length-1,i)); update(); fragmentsOf(index).forEach(f=>f.classList.add('visible')); }
+/* deep links: grpo_intro.html#5 opens slide 5 */
+function slideFromHash(){ const n = parseInt((location.hash||'').slice(1), 10); return Number.isFinite(n) ? n-1 : null; }
+window.addEventListener('hashchange', ()=>{ const h = slideFromHash(); if (h !== null && h !== index) goTo(h); });
+document.addEventListener('keydown', e=>{
+  if (e.target && e.target.tagName === 'INPUT') return;
+  if (e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); next(); }
+  if (e.key==='ArrowLeft'){ e.preventDefault(); prev(); }
+  if (e.key==='Home'){ goTo(0); }
+  if (e.key==='End'){ goTo(slides.length-1); }
+});
+
+function init(){
+  slides = Array.from(document.querySelectorAll('.slide'));
+  const dotsWrap = document.getElementById('dots');
+  slides.forEach((s,i)=>{
+    const d=document.createElement('div'); d.className='dot'; d.title='slide '+(i+1);
+    d.addEventListener('click', ()=>goTo(i)); dotsWrap.appendChild(d);
+  });
+  dots = Array.from(dotsWrap.children);
+  const h = slideFromHash();
+  if (h !== null) goTo(h); else update();
+  drawPpoClipChart();
+  initAdvantageDemo();
+  initZeroGradDemo();
+  drawHeadroomChart();
+  drawLengthChart();
+}
+
+/* ---------- tiny SVG plotting helpers: axes with ticks, labels, legends ---------- */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, text){
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in (attrs||{})) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) setRichText(e, text);
+  return e;
+}
+/* "π_{θ}/π_{old}" -> text with subscript tspans; "^{...}" -> superscript */
+function setRichText(node, s){
+  const parts = String(s).split(/([_^]\{[^}]*\})/);
+  parts.forEach(p=>{
+    const m = p.match(/^([_^])\{([^}]*)\}$/);
+    if (m){
+      const t = document.createElementNS(SVGNS, 'tspan');
+      t.setAttribute('baseline-shift', m[1]==='_' ? 'sub' : 'super');
+      t.setAttribute('font-size', '75%');
+      t.textContent = m[2];
+      node.appendChild(t);
+    } else if (p) node.appendChild(document.createTextNode(p));
+  });
+}
+/* linear or log10 scale from data [d0,d1] to pixels [p0,p1] */
+function scale(d0, d1, p0, p1, log){
+  if (log) return v => p0 + (Math.log10(v)-Math.log10(d0))/(Math.log10(d1)-Math.log10(d0))*(p1-p0);
+  return v => p0 + (v-d0)/(d1-d0)*(p1-p0);
+}
+/* o = {box:{x0,x1,y0,y1}, xs, ys, xTicks:[[value,label]], yTicks, xLabel, yLabel, grid} ; y0 is the bottom edge */
+function drawAxes(svg, o){
+  const b = o.box, g = el('g', {});
+  (o.yTicks||[]).forEach(([v,lab])=>{
+    const y = o.ys(v);
+    if (o.grid) g.appendChild(el('line', {x1:b.x0, y1:y, x2:b.x1, y2:y, stroke:'#9bb0ca', opacity:.14}));
+    g.appendChild(el('line', {x1:b.x0-5, y1:y, x2:b.x0, y2:y, stroke:'#9bb0ca'}));
+    g.appendChild(el('text', {x:b.x0-8, y:y+4, 'text-anchor':'end', class:'ticktext'}, lab));
+  });
+  (o.xTicks||[]).forEach(([v,lab])=>{
+    const x = o.xs(v);
+    g.appendChild(el('line', {x1:x, y1:b.y0, x2:x, y2:b.y0+5, stroke:'#9bb0ca'}));
+    g.appendChild(el('text', {x:x, y:b.y0+19, 'text-anchor':'middle', class:'ticktext'}, lab));
+  });
+  g.appendChild(el('line', {x1:b.x0, y1:b.y0, x2:b.x1, y2:b.y0, stroke:'#9bb0ca'}));
+  g.appendChild(el('line', {x1:b.x0, y1:b.y0, x2:b.x0, y2:b.y1, stroke:'#9bb0ca'}));
+  if (o.xLabel) g.appendChild(el('text', {x:(b.x0+b.x1)/2, y:b.y0+40, 'text-anchor':'middle', class:'axislabel'}, o.xLabel));
+  if (o.yLabel){
+    const cx = b.x0 - (o.yLabelOffset || 52), cy = (b.y0+b.y1)/2;
+    g.appendChild(el('text', {x:cx, y:cy, 'text-anchor':'middle', class:'axislabel', transform:'rotate(-90 '+cx+' '+cy+')'}, o.yLabel));
+  }
+  svg.insertBefore(g, svg.firstChild);
+}
+/* sample f on [a,b] (log-spaced if log) and return an SVG path string */
+function pathOf(f, a, b, xs, ys, n, log){
+  const pts = [];
+  for (let i=0;i<=n;i++){
+    const x = log ? a*Math.pow(b/a, i/n) : a + (b-a)*i/n;
+    pts.push(xs(x).toFixed(1)+','+ys(f(x)).toFixed(1));
+  }
+  return 'M'+pts.join(' L');
+}
+/* items = [{color, dash, label, marker}] drawn as a column starting at (x,y) */
+function drawLegend(svg, x, y, items){
+  items.forEach((it,i)=>{
+    const yy = y + i*20;
+    if (it.marker) svg.appendChild(el('circle', {cx:x+11, cy:yy-4, r:5.5, fill:it.color}));
+    else svg.appendChild(el('line', {x1:x, y1:yy-4, x2:x+22, y2:yy-4, stroke:it.color, 'stroke-width':3.5, 'stroke-dasharray':it.dash||''}));
+    svg.appendChild(el('text', {x:x+30, y:yy, class:'legendtext'}, it.label));
+  });
+}
+
+/* ---------- refresher: PPO clipped objective (static) ---------- */
+function drawPpoClipChart(){
+  const svg = document.getElementById('ppoSvg'), eps = 0.2;
+  const box = {x0:78, x1:520, y0:280, y1:30};
+  const xs = scale(0.4, 1.7, box.x0, box.x1), ys = scale(-1.8, 1.8, box.y0, box.y1);
+  const clip = r => Math.min(Math.max(r, 1-eps), 1+eps);
+  svg.appendChild(el('rect', {x:xs(1-eps), y:box.y1, width:xs(1+eps)-xs(1-eps), height:box.y0-box.y1, fill:'#58d8ff', opacity:.08}));
+  svg.appendChild(el('line', {x1:box.x0, y1:ys(0), x2:box.x1, y2:ys(0), stroke:'#9bb0ca', opacity:.35}));
+  svg.appendChild(el('line', {x1:xs(1), y1:box.y0, x2:xs(1), y2:box.y1, stroke:'#9bb0ca', opacity:.35, 'stroke-dasharray':'4 5'}));
+  svg.appendChild(el('path', {d:pathOf(r=>Math.min(r, clip(r)), 0.4, 1.7, xs, ys, 260), fill:'none', stroke:'#62e6a5', 'stroke-width':4}));
+  svg.appendChild(el('path', {d:pathOf(r=>Math.min(-r, -clip(r)), 0.4, 1.7, xs, ys, 260), fill:'none', stroke:'#ff7188', 'stroke-width':4}));
+  svg.appendChild(el('text', {x:xs(1.45), y:ys(1.2)-10, 'text-anchor':'middle', class:'annot'}, 'flat: zero gradient'));
+  svg.appendChild(el('text', {x:xs(0.6), y:ys(-0.8)+20, 'text-anchor':'middle', class:'annot'}, 'flat: zero gradient'));
+  svg.appendChild(el('text', {x:(xs(0.8)+xs(1.2))/2, y:box.y1+14, 'text-anchor':'middle', class:'annot'}, 'clip range'));
+  drawAxes(svg, {box, xs, ys,
+    xTicks:[[0.4,'0.4'],[0.6,'0.6'],[0.8,'0.8'],[1.0,'1.0'],[1.2,'1.2'],[1.4,'1.4'],[1.6,'1.6']],
+    yTicks:[[-1.5,'−1.5'],[-1,'−1'],[-0.5,'−0.5'],[0,'0'],[0.5,'0.5'],[1,'1'],[1.5,'1.5']],
+    xLabel:'probability ratio r = π_{θ} / π_{old}', yLabel:'clipped objective per unit |A|', grid:true});
+  drawLegend(svg, box.x0+12, box.y1+24, [{color:'#62e6a5', label:'A > 0 (A = +1)'}, {color:'#ff7188', label:'A < 0 (A = −1)'}]);
+}
+
+/* ---------- grade-it-yourself demo ---------- */
+const FAIL_REASONS = ['fast + correct','too slow','wrong output','too slow','fails to compile','wrong output','fast + correct','too slow'];
+let advRewards = [1,0,0,0,0,0,1,0];
+function initAdvantageDemo(){
+  const wrap = document.getElementById('advChips');
+  FAIL_REASONS.forEach((name,i)=>{
+    const c = document.createElement('div');
+    c.className = 'chip';
+    c.innerHTML = '<span>rollout '+(i+1)+'</span><span class="rlabel"></span>';
+    c.addEventListener('click', ()=>{ advRewards[i]=advRewards[i]?0:1; renderAdv(); });
+    wrap.appendChild(c);
+  });
+  renderAdv();
+}
+function renderAdv(){
+  const chips = document.querySelectorAll('#advChips .chip');
+  chips.forEach((c,i)=>{
+    c.className = 'chip' + (advRewards[i] ? '' : ' wrong');
+    const reason = advRewards[i] ? 'passes' : (FAIL_REASONS[i]==='fast + correct' ? 'fails the check' : FAIL_REASONS[i]);
+    c.querySelector('.rlabel').textContent = 'reward '+advRewards[i]+' · '+reason;
+  });
+  const G = advRewards.length;
+  const mean = advRewards.reduce((a,b)=>a+b,0)/G;
+  const std = Math.sqrt(advRewards.reduce((a,b)=>a+(b-mean)*(b-mean),0)/G);
+  const npos = advRewards.filter(r=>r===1).length;
+  const adv = advRewards.map(r => std<1e-8 ? 0 : (r-mean)/std);
+  document.getElementById('advMean').textContent = mean.toFixed(2);
+  document.getElementById('advStd').textContent = std.toFixed(2);
+  document.getElementById('advNpos').textContent = npos;
+  document.getElementById('advStatus').innerHTML = std<1e-8
+    ? '<span class="status-chip wasted">all rewards equal → std = 0 → every advantage is 0 → no gradient from this group</span>'
+    : '<span class="status-chip flows">rewards differ → non-zero advantages → this group contributes a gradient</span>';
+  const svg = document.getElementById('advChart');
+  svg.innerHTML = '';
+  const box = {x0:70, x1:585, y0:270, y1:20};
+  const ys = scale(-3, 3, box.y0, box.y1), slot = (box.x1-box.x0)/G;
+  svg.appendChild(el('line', {x1:box.x0, y1:ys(0), x2:box.x1, y2:ys(0), stroke:'#9bb0ca', opacity:.6}));
+  adv.forEach((a,i)=>{
+    const cx = box.x0 + slot*(i+0.5), w = Math.min(44, slot*0.6);
+    const top = ys(Math.max(a,0)), h = Math.max(Math.abs(ys(a)-ys(0)), 1);
+    const col = a>1e-9 ? '#62e6a5' : (a<-1e-9 ? '#ff7188' : '#7f8c8d');
+    svg.appendChild(el('rect', {x:cx-w/2, y:top, width:w, height:h, fill:col, rx:4}));
+    const ly = a>=0 ? top-8 : ys(a)+18;
+    svg.appendChild(el('text', {x:cx, y:ly, 'text-anchor':'middle', 'font-size':13, 'font-weight':800, fill:'#eef6ff'}, (a>=0?'+':'')+a.toFixed(2)));
+  });
+  const xTicks = adv.map((_,i)=>[i, String(i+1)]);
+  drawAxes(svg, {box, xs:i=>box.x0+slot*(i+0.5), ys,
+    xTicks, yTicks:[[-3,'−3'],[-2,'−2'],[-1,'−1'],[0,'0'],[1,'+1'],[2,'+2'],[3,'+3']],
+    xLabel:'rollout i', yLabel:'advantage Â_{i}', grid:true, yLabelOffset:44});
+}
+
+/* ---------- failure 1: zero-advantage groups ---------- */
+let zgG = 8;
+const ZG = {box:{x0:78, x1:540, y0:280, y1:30}};
+ZG.xs = scale(0, 1, ZG.box.x0, ZG.box.x1); ZG.ys = scale(0, 1, ZG.box.y0, ZG.box.y1);
+function pInformative(p,G){ return 1 - Math.pow(p,G) - Math.pow(1-p,G); }
+function initZeroGradDemo(){
+  const svg = document.getElementById('zgSvg');
+  drawAxes(svg, {box:ZG.box, xs:ZG.xs, ys:ZG.ys,
+    xTicks:[[0,'0'],[0.25,'0.25'],[0.5,'0.5'],[0.75,'0.75'],[1,'1']],
+    yTicks:[[0,'0%'],[0.25,'25%'],[0.5,'50%'],[0.75,'75%'],[1,'100%']],
+    xLabel:'per-rollout success probability p', yLabel:'P(group is informative)', grid:true});
+  svg.appendChild(el('path', {id:'zgCurve', fill:'none', stroke:'#58d8ff', 'stroke-width':4}));
+  svg.appendChild(el('circle', {id:'zgDot', r:7, fill:'#ffb86b'}));
+  const leg = el('g', {id:'zgLegend'}); svg.appendChild(leg);
+  document.querySelectorAll('.gsel').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.querySelectorAll('.gsel').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); zgG=parseInt(b.dataset.g); drawZgCurve(); renderZg();
+    });
+  });
+  document.getElementById('zgP').addEventListener('input', renderZg);
+  drawZgCurve(); renderZg();
+}
+function drawZgCurve(){
+  document.getElementById('zgCurve').setAttribute('d', pathOf(p=>pInformative(p,zgG), 0, 1, ZG.xs, ZG.ys, 200));
+  const leg = document.getElementById('zgLegend'); leg.innerHTML = '';
+  drawLegend(leg, ZG.box.x0+150, ZG.box.y0-50, [
+    {color:'#58d8ff', label:'1 − p^{G} − (1 − p)^{G}, G = '+zgG},
+    {color:'#ffb86b', marker:true, label:'current p'}]);
+}
+function renderZg(){
+  const p=parseFloat(document.getElementById('zgP').value), info=pInformative(p,zgG);
+  document.getElementById('zgPval').textContent=p.toFixed(2);
+  document.getElementById('zgInfo').textContent=(info*100).toFixed(0)+'%';
+  document.getElementById('zgWaste').textContent=((1-info)*100).toFixed(0)+'%';
+  const dot=document.getElementById('zgDot');
+  dot.setAttribute('cx', ZG.xs(p)); dot.setAttribute('cy', ZG.ys(info));
+}
+
+/* ---------- failure 2: probability headroom under ratio clipping (static) ---------- */
+function drawHeadroomChart(){
+  const svg = document.getElementById('headSvg');
+  const box = {x0:80, x1:540, y0:280, y1:30};
+  const xs = scale(0, 1, box.x0, box.x1), ys = scale(0, 0.24, box.y0, box.y1);
+  const head = eps => p => Math.min((1+eps)*p, 1) - p;
+  drawAxes(svg, {box, xs, ys,
+    xTicks:[[0,'0'],[0.2,'0.2'],[0.4,'0.4'],[0.6,'0.6'],[0.8,'0.8'],[1,'1']],
+    yTicks:[[0,'0'],[0.05,'0.05'],[0.1,'0.10'],[0.15,'0.15'],[0.2,'0.20']],
+    xLabel:'token probability under the old policy, p_{old}', yLabel:'max gain before clipping, Δp_{max}', grid:true, yLabelOffset:56});
+  [[0.2,'#ff7188'],[0.28,'#62e6a5']].forEach(([eps,col])=>{
+    const k = 1/(1+eps);
+    svg.appendChild(el('line', {x1:xs(k), y1:box.y0, x2:xs(k), y2:ys(head(eps)(k)), stroke:col, opacity:.45, 'stroke-dasharray':'3 4'}));
+  });
+  svg.appendChild(el('path', {d:pathOf(head(0.2), 0, 1, xs, ys, 400), fill:'none', stroke:'#ff7188', 'stroke-width':4}));
+  svg.appendChild(el('path', {d:pathOf(head(0.28), 0, 1, xs, ys, 400), fill:'none', stroke:'#62e6a5', 'stroke-width':3.5, 'stroke-dasharray':'9 6'}));
+  /* example points with labels placed in empty regions and joined by leader lines */
+  [[0.01, xs(0.25), ys(0.02), 'start', 'p_{old} = 0.01 → +0.002 only'],
+   [0.5,  xs(0.47), ys(0.152), 'end',   'p_{old} = 0.5 → +0.10']].forEach(([p,tx,ty,anchor,lab])=>{
+    const px = xs(p), py = ys(head(0.2)(p));
+    svg.appendChild(el('line', {x1:px, y1:py, x2:tx+(anchor==='end'?4:-4), y2:ty-4, stroke:'#ffb86b', opacity:.7}));
+    svg.appendChild(el('circle', {cx:px, cy:py, r:6, fill:'#ffb86b'}));
+    svg.appendChild(el('text', {x:tx, y:ty, 'text-anchor':anchor, class:'annot'}, lab));
+  });
+  svg.appendChild(el('text', {x:xs(1/1.2)-6, y:box.y0-8, 'text-anchor':'end', class:'annot'}, 'peak at p_{old} = 1/(1+ε)'));
+  drawLegend(svg, box.x0+14, box.y1+18, [
+    {color:'#ff7188', label:'GRPO / PPO: ε = 0.2'},
+    {color:'#62e6a5', dash:'9 6', label:'DAPO Clip-Higher: ε_{high} = 0.28'},
+    {color:'#ffb86b', marker:true, label:'examples (ε = 0.2)'}]);
+}
+
+/* ---------- failure 3: per-token weight vs response length (static) ---------- */
+function drawLengthChart(){
+  const svg = document.getElementById('lenSvg');
+  const G = 8, others = 7*200;                     /* seven other responses of 200 tokens */
+  const box = {x0:84, x1:540, y0:280, y1:30};
+  const xs = scale(10, 1000, box.x0, box.x1, true), ys = scale(1e-4, 2e-2, box.y0, box.y1, true);
+  const wSample = L => 1/(G*L), wToken = L => 1/(others+L);
+  drawAxes(svg, {box, xs, ys,
+    xTicks:[[10,'10'],[20,'20'],[50,'50'],[100,'100'],[200,'200'],[500,'500'],[1000,'1000']],
+    yTicks:[[1e-4,'0.0001'],[3e-4,'0.0003'],[1e-3,'0.001'],[3e-3,'0.003'],[1e-2,'0.01']],
+    xLabel:'length |o_{i}| of the varied response (tokens, log scale)', yLabel:'weight of each token (log scale)', grid:true, yLabelOffset:62});
+  svg.appendChild(el('path', {d:pathOf(wSample, 10, 1000, xs, ys, 200, true), fill:'none', stroke:'#ff7188', 'stroke-width':4}));
+  svg.appendChild(el('path', {d:pathOf(wToken, 10, 1000, xs, ys, 200, true), fill:'none', stroke:'#62e6a5', 'stroke-width':3.5, 'stroke-dasharray':'9 6'}));
+  [20,200].forEach(L=>svg.appendChild(el('circle', {cx:xs(L), cy:ys(wSample(L)), r:6, fill:'#ffb86b'})));
+  svg.appendChild(el('line', {x1:xs(20), y1:ys(wSample(20)), x2:xs(200), y2:ys(wSample(20)), stroke:'#ffb86b', 'stroke-dasharray':'3 4'}));
+  svg.appendChild(el('line', {x1:xs(200), y1:ys(wSample(20)), x2:xs(200), y2:ys(wSample(200)), stroke:'#ffb86b', 'stroke-dasharray':'3 4'}));
+  svg.appendChild(el('text', {x:xs(200)+8, y:(ys(wSample(20))+ys(wSample(200)))/2, class:'annot'}, '10× less weight per token'));
+  svg.appendChild(el('text', {x:xs(20)+8, y:ys(wSample(20))-8, class:'annot'}, '20 tokens: 1/160'));
+  drawLegend(svg, box.x0+12, box.y0-44, [
+    {color:'#ff7188', label:'GRPO sample-level: 1/(G·|o_{i}|)'},
+    {color:'#62e6a5', dash:'9 6', label:'DAPO token-level: 1/Σ_{j}|o_{j}|'}]);
+}
+
+/* ---------- quiz ---------- */
+function answer(id,value){
+  const el=document.getElementById(id);
+  const correct={
+    q1:['group','Correct \u2014 the group\u2019s own mean reward is the baseline; no critic is trained.'],
+    q2:['zero','Correct \u2014 the objective is flat beyond 1+\u03b5, so that sample stops contributing gradient.'],
+    q3:['tie','Correct \u2014 identical rewards give std = 0, so every advantage is 0.'],
+    q4:['abs','Correct \u2014 the clip bounds the ratio, so a token at p_old can gain only about \u03b5\u00b7p_old.']
+  };
+  const ok=correct[id][0]===value;
+  el.innerHTML= ok?correct[id][1]:'Not quite \u2014 try the other option.';
+  el.className='quiz-answer show '+(ok?'correct':'incorrect');
+}
+</script>
+<script src="assets/deck_common.js"></script>
+</body>
+</html>

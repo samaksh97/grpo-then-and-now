@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DisCO — Discriminative Constrained Optimization for Reasoning Models</title>
+<link href="vendor/katex/katex.min.css" rel="stylesheet"/>
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/contrib/auto-render.min.js"></script>
+<style>
+:root{
+  --bg:#08111f;
+  --panel:#101d31;
+  --panel2:#162943;
+  --text:#eaf2ff;
+  --muted:#9bb0ca;
+  --cyan:#58d8ff;
+  --purple:#a78bfa;
+  --green:#62e6a5;
+  --orange:#ffb86b;
+  --red:#ff7188;
+  --border:#2a466b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:radial-gradient(circle at 75% 8%,#182c4a 0,#08111f 45%);
+  color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;
+  overflow:hidden;
+}
+code, .mono{ font-family:"JetBrains Mono", ui-monospace, monospace; }
+.deck{height:100vh;position:relative}
+.slide{
+  position:absolute;inset:0;padding:5vh 8vw 8vh;
+  opacity:0;transform:translateX(30px) scale(.98);
+  pointer-events:none;transition:.45s ease;overflow-y:auto;
+}
+.slide.active{opacity:1;transform:none;pointer-events:auto}
+.slide::-webkit-scrollbar{width:8px}
+.slide::-webkit-scrollbar-thumb{background:#233650;border-radius:8px}
+h1{font-size:clamp(2.5rem,6vw,6rem);line-height:1.02;margin:0 0 22px;font-weight:800}
+h2{font-size:clamp(1.9rem,3.6vw,3.4rem);margin:0 0 20px;font-weight:800}
+h3{color:var(--cyan);margin:0 0 8px;font-size:1.15rem;font-weight:700}
+p,li{font-size:clamp(1rem,1.35vw,1.22rem);line-height:1.58}
+.subtitle{font-size:1.4rem;color:var(--muted);max-width:850px;font-weight:500}
+.kicker{color:var(--cyan);font-weight:800;letter-spacing:.15em;text-transform:uppercase;font-size:.82rem;margin-bottom:6px;display:block}
+.card{
+  background:linear-gradient(145deg,rgba(22,41,67,.9),rgba(12,25,44,.9));
+  border:1px solid var(--border);border-radius:22px;padding:24px;
+  box-shadow:0 18px 50px #0004;
+}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center}
+@media(max-width:900px){.two{grid-template-columns:1fr}}
+.badge{display:inline-block;padding:7px 12px;border-radius:999px;background:#203a5e;color:var(--cyan);margin:4px 4px 0 0;font-size:.85rem;font-weight:600}
+.good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--orange)}
+button{
+  border:0;border-radius:12px;padding:11px 17px;margin:5px 5px 0 0;
+  background:#24436b;color:white;font-weight:700;cursor:pointer;
+  transition:.2s;font-size:.92rem;
+}
+button:hover{background:#356394;transform:translateY(-2px)}
+button.primary{background:linear-gradient(90deg,#287ea4,#6952b8)}
+button.ghost{background:transparent;border:1px solid var(--border)}
+.controls{
+  position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+  z-index:30;background:#0e1b2dcc;border:1px solid #355579;
+  border-radius:999px;padding:6px 12px;backdrop-filter:blur(12px);
+  display:flex;align-items:center;gap:2px;
+}
+#counter{color:var(--muted);padding:0 12px;font-size:.85rem;font-variant-numeric:tabular-nums}
+.progress{position:fixed;top:0;left:0;height:5px;background:linear-gradient(90deg,var(--cyan),var(--purple));z-index:40;width:0;transition:width .35s ease}
+.dots{position:fixed;left:24px;bottom:26px;display:flex;flex-direction:column;gap:6px;z-index:30}
+.dots .dot{width:7px;height:7px;border-radius:50%;background:#233650;cursor:pointer;transition:.2s}
+.dots .dot.active{background:var(--cyan);height:20px}
+.hint{position:fixed;top:16px;right:22px;font-size:.78rem;color:var(--muted);z-index:30;opacity:.85}
+svg{width:100%;max-height:410px;overflow:visible}
+.node{fill:#183454;stroke:#58d8ff;stroke-width:2}
+.node.goodnode{stroke:var(--green)}
+.node.badnode{stroke:var(--red)}
+.svgtext{fill:#eef6ff;font-size:16px;font-weight:700;font-family:Inter,sans-serif}
+.ticktext{fill:#9bb0ca;font-size:12px;font-weight:500;font-family:Inter,system-ui,sans-serif}
+.axislabel{fill:#dbe7f7;font-size:13px;font-weight:700;font-family:Inter,system-ui,sans-serif}
+.legendtext{fill:#eef6ff;font-size:12.5px;font-weight:600;font-family:Inter,system-ui,sans-serif}
+.annot{fill:#c9d8eb;font-size:12px;font-weight:600;font-family:Inter,system-ui,sans-serif}
+.refs{margin-top:14px;font-size:.76rem;color:#8aa0bd;border-top:1px solid #20344f;padding-top:6px;line-height:1.45}
+.refs b{color:#b7c8de}
+.glossary{font-size:.82rem;color:var(--muted);line-height:1.55;margin:0}
+.glossary b{color:var(--text)}
+.reflist{font-size:.86rem;line-height:1.5;color:#c9d8eb;columns:2;column-gap:36px}
+.reflist li{font-size:.86rem;break-inside:avoid;margin-bottom:6px}
+.reflist a{color:var(--cyan)}
+.mathwarn{position:fixed;top:40px;left:50%;transform:translateX(-50%);z-index:50;background:#3a1c22;border:1px solid var(--red);
+  color:#ffd7de;padding:10px 16px;border-radius:12px;font-size:.88rem;max-width:780px;line-height:1.45}
+.small{font-size:.92rem;color:var(--muted)}
+.cite{font-size:.85rem;color:var(--muted);border-left:3px solid var(--border);padding:8px 14px;margin-top:14px;background:#0b1626;border-radius:0 8px 8px 0}
+.cite b{color:var(--cyan)}
+.mathbox{
+  background:#07101d;border-left:4px solid var(--purple);padding:16px 18px;
+  border-radius:12px;margin:14px 0;overflow-x:auto
+}
+.reveal-pulse{animation:pulse 2.5s infinite alternate}
+@keyframes pulse{from{filter:drop-shadow(0 0 2px #58d8ff)}to{filter:drop-shadow(0 0 12px #58d8ff)}}
+@keyframes flow{ to { offset-distance: 100%; } }
+.flow-dot{
+  width:9px;height:9px;border-radius:50%;background:var(--cyan);
+  offset-distance:0%; box-shadow:0 0 8px var(--cyan);
+}
+.flowpath-1{ offset-path: path("M180 170 H270"); animation: flow 1.6s linear infinite; }
+.flowpath-2a{ offset-path: path("M440 145 H520"); animation: flow 1.6s linear infinite; animation-delay:.3s; }
+.flowpath-2b{ offset-path: path("M440 195 H520"); animation: flow 1.6s linear infinite; animation-delay:.6s; background:var(--red); box-shadow:0 0 8px var(--red);}
+.looppath{ offset-path: path("M160 120 H235"); animation: flow 1.3s linear infinite; }
+.looppath2{ offset-path: path("M400 120 H475"); animation: flow 1.3s linear infinite; animation-delay:.32s; }
+.looppath3{ offset-path: path("M640 120 H715"); animation: flow 1.3s linear infinite; animation-delay:.64s; }
+.looppath4{ offset-path: path("M850 120 H925"); animation: flow 1.3s linear infinite; animation-delay:.96s; }
+.looppath5{ offset-path: path("M960 180 C960 240 85 240 85 175"); animation: flow 2.6s linear infinite; background:var(--purple); box-shadow:0 0 8px var(--purple); }
+.small{font-size:.95rem;color:var(--muted)}
+.barrow{display:grid;grid-template-columns:180px 1fr 64px;gap:12px;align-items:center;margin:12px 0}
+.bar{height:20px;background:#20344f;border-radius:99px;overflow:hidden}
+.fill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--purple));transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.fill.green{background:linear-gradient(90deg,var(--green),#2ba889)}
+.fill.orange{background:linear-gradient(90deg,var(--orange),#e7667b)}
+.note{
+  display:none;background:#07101d;border:1px solid #3d5d83;padding:16px 18px;
+  border-radius:12px;color:#c9d8eb;margin-top:14px;font-size:.92rem;
+}
+.note.show{display:block}
+table{width:100%;border-collapse:collapse;font-size:1rem}
+td,th{padding:12px;border-bottom:1px solid #28415e;text-align:left}
+th{color:var(--cyan);font-size:.9rem;text-transform:uppercase;letter-spacing:.04em}
+.katex{text-transform:none;letter-spacing:normal}
+.quiz-answer{display:none;font-weight:700;margin-top:8px}
+.quiz-answer.show{display:block}
+.quiz-answer.correct{color:var(--green)}
+.quiz-answer.incorrect{color:var(--red)}
+.fragment{opacity:0;transform:translateY(8px);transition:all .45s ease}
+.fragment.visible{opacity:1;transform:translateY(0)}
+input[type=range]{width:100%;accent-color:var(--cyan);margin:6px 0}
+.readout{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap}
+.readout .box{background:#0b1626;border:1px solid var(--border);border-radius:10px;padding:8px 14px;text-align:center;min-width:96px}
+.readout .box .val{font-size:1.25rem;font-weight:800;font-variant-numeric:tabular-nums}
+.readout .box .lbl{font-size:.72rem;color:var(--muted);margin-top:2px}
+
+/* flip cards for the math toolkit */
+.card3d{perspective:1200px;height:270px;cursor:pointer}
+.card3d-inner{position:relative;width:100%;height:100%;transition:transform .6s;transform-style:preserve-3d}
+.card3d.flipped .card3d-inner{transform:rotateY(180deg)}
+.card3d-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;padding:16px;
+  display:flex;flex-direction:column;justify-content:center;border:1px solid var(--border)}
+.card3d-face.front{background:linear-gradient(160deg,#182c4a,#0e1b2e);text-align:center}
+.card3d-face.back{background:linear-gradient(160deg,#173049,#0d1a2c);transform:rotateY(180deg);font-size:.82rem;line-height:1.4;overflow:auto;justify-content:flex-start}
+.card3d-face.back .why{color:var(--cyan);font-weight:700;display:block;margin-top:8px}
+.card3d-face.front .icon{font-size:32px;margin-bottom:8px}
+.card3d-face.front .title{font-weight:700;font-size:.95rem}
+.card3d-face.front .tap{font-size:.72rem;color:var(--muted);margin-top:10px}
+.card3d-face.back a{color:var(--cyan);font-size:.8rem}
+
+/* AUC / ROC demo */
+.numberline{position:relative;height:60px;background:#0b1626;border:1px solid var(--border);border-radius:10px;margin:14px 0}
+.numberline .dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 6px currentColor}
+.numberline .dot.posdot{background:var(--green);color:var(--green);top:18px}
+.numberline .dot.negdot{background:var(--red);color:var(--red);top:42px}
+.numberline .thresh{position:absolute;top:0;bottom:0;width:2px;background:#fff;opacity:.7}
+.numberline .lane-label{position:absolute;left:8px;font-size:.68rem;color:var(--muted)}
+.numberline .lane-label.pos{top:2px}
+.numberline .lane-label.neg{top:44px}
+@media(max-height:800px){
+  .slide{padding:3vh 7vw 7vh}
+  h1{font-size:clamp(2.2rem,5vw,4.5rem);margin-bottom:12px}
+  h2{font-size:clamp(1.65rem,3vw,2.8rem);margin-bottom:12px}
+  h3{font-size:1rem;margin-bottom:5px}
+  p,li{font-size:clamp(.88rem,1.1vw,1rem);line-height:1.35}
+  .card{padding:16px;border-radius:16px}
+  .grid{gap:14px}.two{gap:20px}
+  .mathbox{padding:10px 12px;margin:8px 0}
+  svg{max-height:330px}
+  .cite{margin-top:8px;padding:6px 10px}
+}
+</style>
+<link href="assets/deck_common.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="deck">
+<div class="progress" id="progress"></div>
+<div class="hint">Space / → advance · ← back · click a dot, or open <code>#N</code>, to jump to slide N</div>
+<!-- 1 -->
+<section class="slide active" data-slug="title">
+<span class="kicker">A visual guide to the paper · companion to the GRPO deck</span>
+<h1>DisCO</h1>
+<p class="subtitle">
+<span style="color:var(--cyan)">Discriminative Constrained Optimization</span>, from
+    <i>DisCO: Reinforcing Large Reasoning Models with Discriminative Constrained Optimization</i>.
+  </p>
+<div class="card" style="margin-top:28px;max-width:900px">
+<p><b>The story in one sentence:</b> with binary rewards, GRPO's objective weights each question by a factor that depends on its difficulty, so medium-difficulty questions matter most. DisCO removes that weight, optimizes an explicit "score correct answers above incorrect ones" objective, and controls policy drift with a KL constraint instead of an always-on KL penalty.</p>
+<div>
+<span class="badge">GRPO</span>
+<span class="badge">difficulty bias</span>
+<span class="badge">discriminative learning</span>
+<span class="badge">KL constraint</span>
+<span class="badge">hard negatives</span>
+</div>
+</div>
+<p class="glossary" style="margin-top:20px;max-width:900px">
+<b>Acronyms in this deck.</b>
+<b>DisCO</b> Discriminative Constrained Optimization (Li et al., 2025) ·
+    <b>GRPO</b> Group Relative Policy Optimization (Shao et al., 2024) ·
+    <b>DAPO</b> Decoupled Clip and Dynamic sAmpling Policy Optimization (Yu et al., 2025) ·
+    <b>Dr. GRPO</b> Group Relative Policy Optimization Done Right (Liu et al., 2025) ·
+    <b>KL</b> Kullback–Leibler divergence ·
+    <b>AUC</b> area under the ROC curve ·
+    <b>ROC</b> receiver operating characteristic ·
+    <b>DRO</b> distributionally robust optimization ·
+    <b>RL</b> reinforcement learning. Full references: last slide.
+  </p>
+<p class="small" style="margin-top:14px">
+    Gang Li · Ming C. Lin · Tomer Galanti · Zhengzhong Tu · Tianbao Yang · NeurIPS 2025 · <a href="https://arxiv.org/abs/2505.12366" style="color:var(--cyan)" target="_blank">arXiv:2505.12366</a> · assumes <a href="grpo_intro.html" style="color:var(--cyan)">the GRPO deck</a>
+</p>
+</section>
+<!-- 2 -->
+<section class="slide" data-slug="setting">
+<span class="kicker">The setting</span>
+<h2>How reasoning RL works</h2>
+<div class="two">
+<div>
+<p>Start with a reasoning model $\pi_{\theta}$. For each question $q$, sample several answers:</p>
+<div class="mathbox">$$ o \sim \pi_{\text{old}}(\cdot\mid q) $$</div>
+<p>A verifier gives each answer a binary reward:</p>
+<div class="mathbox">$$ r(o\mid q)\in\{0,1\} $$</div>
+<p>Correct answers are <span class="good">positive examples</span>; incorrect answers are <span class="bad">negative examples</span>. Nothing in between — no partial credit.</p>
+<p class="small"><b>Notation (DisCO paper):</b> $r$ is the reward and $x=\pi_\theta/\pi_{\text{old}}$ the importance ratio. The DAPO deck follows the DAPO paper instead and writes the ratio as $r_{i,t}$ and the reward as $R_i$.</p>
+</div>
+<div class="card">
+<svg viewbox="0 0 620 250">
+<defs>
+<marker id="arrow" markerheight="10" markerwidth="10" orient="auto" refx="8" refy="3">
+<path d="M0,0 L0,6 L9,3 z" fill="#58d8ff"></path>
+</marker>
+</defs>
+<rect class="node" height="70" rx="15" width="150" x="25" y="85"></rect>
+<text class="svgtext" text-anchor="middle" x="100" y="115">Question q</text>
+<text class="svgtext" font-size="13" text-anchor="middle" x="100" y="138">"Solve 2x+3=9"</text>
+<path d="M180 120 H270" marker-end="url(#arrow)" stroke="#58d8ff" stroke-width="3"></path>
+<rect class="node" height="120" rx="15" width="155" x="280" y="60"></rect>
+<text class="svgtext" text-anchor="middle" x="357" y="95">Reasoning</text>
+<text class="svgtext" text-anchor="middle" x="357" y="120">model π</text>
+<text class="svgtext" font-size="13" text-anchor="middle" x="357" y="145">samples answers</text>
+<path d="M440 95 H520" marker-end="url(#arrow)" stroke="#62e6a5" stroke-width="3"></path>
+<path d="M440 145 H520" marker-end="url(#arrow)" stroke="#ff7188" stroke-width="3"></path>
+<text class="svgtext" fill="#62e6a5" text-anchor="middle" x="573" y="100">✓ 3 correct</text>
+<text class="svgtext" fill="#ff7188" text-anchor="middle" x="573" y="150">✗ 5 wrong</text>
+<circle class="flow-dot flowpath-1"></circle>
+<circle class="flow-dot flowpath-2a"></circle>
+<circle class="flow-dot flowpath-2b"></circle>
+</svg>
+<p class="small" style="text-align:center;margin-top:4px;">watch the dots flow: question → model → verified answers</p>
+</div>
+</div>
+</section>
+<!-- 3 -->
+<section class="slide" data-slug="difficulty">
+<span class="kicker">Question difficulty</span>
+<h2>Every question has a difficulty $p(q)$</h2>
+<div class="two">
+<div>
+<p>Define:</p>
+<div class="mathbox">$$ p(q)=\mathbb{E}_{o\sim\pi_{\text{old}}}[r(o\mid q)] $$</div>
+<p>Because the reward is binary, $p(q)$ is simply the probability that the current model solves question $q$ correctly — averaged over many sampled attempts.</p>
+<p class="small">Each question's learning signal gets multiplied by $\omega(q)=\sqrt{p(q)(1-p(q))}$: plug that question's $p(q)$ into the formula, and you get how loudly its rollouts speak in the update.</p>
+<button onclick="showDifficulty('easy')">Easy question</button>
+<button onclick="showDifficulty('medium')">Medium question</button>
+<button onclick="showDifficulty('hard')">Hard question</button>
+<p class="card" id="difficultyText" style="margin-top:14px;">Click a difficulty level above to see GRPO's weight for it.</p>
+</div>
+<div class="card">
+<svg aria-label="GRPO question weight omega versus question difficulty p" id="omegaSvg" role="img" viewbox="0 0 600 340">
+<line stroke="#9bb0ca" x1="80" x2="560" y1="280" y2="280"></line>
+<line stroke="#9bb0ca" x1="80" x2="80" y1="50" y2="280"></line>
+<line opacity="0.35" stroke="#9bb0ca" stroke-dasharray="4 6" x1="80" x2="560" y1="70" y2="70"></line>
+<line opacity="0.35" stroke="#9bb0ca" stroke-dasharray="4 6" x1="80" x2="560" y1="175" y2="175"></line>
+<text class="axislabel" font-size="15" text-anchor="middle" x="320" y="324">question difficulty p(q) = accuracy of the current policy</text>
+<text class="axislabel" font-size="15" text-anchor="middle" transform="rotate(-90 26,165)" x="26" y="165">weight ω(q) on the update</text>
+<text class="ticktext" font-size="13" text-anchor="end" x="70" y="285">0</text>
+<text class="ticktext" font-size="13" text-anchor="end" x="70" y="180">0.25</text>
+<text class="ticktext" font-size="13" text-anchor="end" x="70" y="75">0.50</text>
+<path d="" fill="none" id="curve" stroke="#58d8ff" stroke-width="6"></path>
+<circle class="reveal-pulse" cx="320" cy="70" fill="#62e6a5" id="wMarker" opacity="0" r="9"></circle>
+<text class="svgtext" id="wMarkerLabel" text-anchor="middle" x="320" y="52"></text>
+<text class="ticktext" font-size="13" text-anchor="middle" x="80" y="300">0 (hard)</text>
+<text class="ticktext" font-size="13" text-anchor="middle" x="320" y="300">0.5</text>
+<text class="ticktext" font-size="13" text-anchor="middle" x="560" y="300">1 (easy)</text>
+</svg>
+</div>
+</div>
+</section>
+<!-- 4 -->
+<section class="slide" data-slug="notation">
+<span class="kicker">Notation</span>
+<h2>The five ideas this deck uses</h2>
+<p class="muted" style="color:var(--muted)">You don't need more than this to follow every derivation in the rest of the deck.</p>
+<table class="notation"><thead><tr><th>Idea</th><th>What it means in this deck</th></tr></thead><tbody><tr><td>Law of total expectation</td><td>Split any random draw into disjoint cases, and the overall average is the probability-weighted average of each case's average.
+          <div class="mathbox" style="font-size:.8rem;margin-top:8px;padding:8px 10px;">$\mathbb{E}[g]=P(A)\mathbb{E}[g\mid A]+P(B)\mathbb{E}[g\mid B]$</div>
+
+<a href="https://en.wikipedia.org/wiki/Law_of_total_expectation" target="_blank"> source ↗</a></td></tr><tr><td>Bernoulli mean &amp; variance</td><td>A reward that is always exactly 0 or 1, with $P(r=1)=p$. Averaging 0s and 1s just counts the 1s, so $\mathbb{E}[r]=p$. And since $r^2=r$ for 0/1 values, $\mathrm{Var}[r]=\mathbb{E}[r^2]-\mathbb{E}[r]^2=p-p^2=p(1-p)$.
+          
+          GRPO divides by that $\sigma=\sqrt{p(1-p)}$, which is exactly where the deck is headed.
+          
+<a href="https://en.wikipedia.org/wiki/Bernoulli_distribution" target="_blank"> source ↗</a></td></tr><tr><td>Importance ratio</td><td>The rollouts were written by $\pi_{\text{old}}$, but we want to score $\pi_\theta$. The ratio $x=\pi_\theta(o)/\pi_{\text{old}}(o)$ is the correction that lets you reuse those stale samples: it re-prices each one by how much the current policy's opinion of it has changed.
+          
+          Drift far from 1 and the reused samples stop being trustworthy — which is what clipping and trust regions are reacting to.
+          
+<a href="https://en.wikipedia.org/wiki/Importance_sampling" target="_blank"> source ↗</a></td></tr><tr><td>KL divergence</td><td>$D_{\mathrm{KL}}(\pi_{\text{old}}\Vert\pi_\theta)=\mathbb{E}_{o\sim\pi_{\text{old}}}\!\left[\log\frac{\pi_{\text{old}}(o)}{\pi_\theta(o)}\right]$: the average log-surprise of judging the old policy's own outputs by the new policy. Zero only if the two agree everywhere, and never negative.
+          
+          That asymmetry is why DisCO constrains this direction specifically.
+          
+<a href="https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence" target="_blank"> source ↗</a></td></tr><tr><td>AUC &amp; discriminative learning</td><td><b>Generative</b> learning asks "how probable is this answer?" — an absolute number per answer. <b>Discriminative</b> learning only asks "does the right answer score above the wrong one?" — a comparison, where just the gap matters.
+          
+          AUC is the score for exactly that: the chance a random positive outranks a random negative.
+          
+<a href="https://en.wikipedia.org/wiki/Receiver_operating_characteristic" target="_blank"> source ↗</a></td></tr></tbody></table>
+</section>
+<!-- 4b -->
+<section class="slide" data-slug="auc">
+<span class="kicker">The one metric to know: AUC</span>
+<h2>AUC = the chance a random positive beats a random negative</h2>
+<div class="two">
+<div>
+<p>Five correct answers (green), five incorrect answers (red), each scored by the model. Drag the threshold: anything scored above it gets called "positive."</p>
+<input id="aucThreshold" max="1" min="0" step="0.01" type="range" value="0.5"/>
+<div class="numberline" id="aucNumberline">
+<div class="lane-label pos">correct</div>
+<div class="lane-label neg">incorrect</div>
+<div class="thresh" id="aucThreshLine"></div>
+</div>
+<div class="readout">
+<div class="box"><div class="val" id="aucTPR">-</div><div class="lbl">true positive rate</div></div>
+<div class="box"><div class="val" id="aucFPR">-</div><div class="lbl">false positive rate</div></div>
+<div class="box"><div class="val good" id="aucVal">-</div><div class="lbl">overall AUC</div></div>
+</div>
+<p class="small fragment" style="margin-top:12px;">Slide the threshold from 1 down to 0 and the point on the right traces the whole ROC curve. The shaded area under it is the AUC — here it's <b>0.76</b>: the model ranks a random correct answer above a random incorrect one about 76% of the time, not 100%.</p>
+</div>
+<div class="card">
+<svg aria-label="ROC curve of the model's scores" id="rocSvg" role="img" viewbox="0 0 400 400">
+<line stroke="#6b86a8" stroke-dasharray="5 5" x1="50" x2="380" y1="350" y2="30"></line>
+<path fill="none" id="rocCurve" stroke="#58d8ff" stroke-width="4"></path>
+<path fill="#58d8ff" id="rocFill" opacity="0.15" stroke="none"></path>
+<circle fill="#ffb86b" id="rocDot" r="7"></circle>
+<text class="svgtext" font-size="14" text-anchor="middle" x="215" y="15">the ROC curve</text>
+</svg>
+</div>
+</div>
+</section>
+<!-- 5 -->
+<section class="slide" data-slug="question-weight">
+<span class="kicker">GRPO's implicit question weight</span>
+<h2>From binary advantages to $\omega(q)$</h2>
+<div class="two">
+<div>
+<p>Under the paper's population binary-reward analysis, a question solved with probability $p(q)$ has two possible normalized advantages:</p>
+<div class="mathbox">
+        $$ A(o\mid q)=\begin{cases}\sqrt{\dfrac{1-p(q)}{p(q)}} &amp; r=1\\[5pt]-\sqrt{\dfrac{p(q)}{1-p(q)}} &amp; r=0\end{cases} $$
+      </div>
+<p class="small">At $p=0.1$, a rare correct answer gets $+3.0$ while a wrong answer gets $-0.33$.</p>
+</div>
+<div>
+<p>Weight each branch by how often it occurs:</p>
+<div class="mathbox small">
+        $$p\sqrt{\tfrac{1-p}{p}}=(1-p)\sqrt{\tfrac{p}{1-p}}=\sqrt{p(1-p)}$$
+      </div>
+<div class="mathbox fragment" style="border-color:var(--orange);text-align:center;">
+        $$\boxed{\omega(q)=\sqrt{p(q)(1-p(q))}}$$
+      </div>
+<p class="small fragment">Finite sampled groups introduce estimation effects; $\omega(q)$ is exact in the population analysis.</p>
+</div>
+</div>
+</section>
+<section class="slide figure-slide" data-slug="difficulty-weight">
+<span class="kicker sr-only">Interpreting the weight</span>
+<h2 class="sr-only">Middle-difficulty questions receive the most weight</h2><figure class="fig"><img alt="Per-question weight against question accuracy p: GRPO's square root of p(1 - p) peaks at 0.5 for p = 0.5 and vanishes at 0 and 1, Dr. GRPO's p(1 - p) peaks at 0.25, and DisCO's weight is a constant 1." loading="lazy" src="../figures/set/F07_per_question_weight_vs_difficulty.png"/></figure><details class="more"><summary>Details</summary><p>$\omega(q)$ multiplies a question's contribution to the population objective; it is not a learned network parameter.</p><div class="grid">
+<div class="card"><h3>Hard: $p=0.01$</h3><div class="mathbox">$$\omega\approx0.10$$</div><p class="small">Rare successes are loud, but occur rarely.</p></div>
+<div class="card"><h3>Middle: $p=0.50$</h3><div class="mathbox">$$\omega=0.50$$</div><p class="small warn">The population weight peaks here.</p></div>
+<div class="card"><h3>Easy: $p=0.99$</h3><div class="mathbox">$$\omega\approx0.10$$</div><p class="small">The remaining mistakes receive less weight.</p></div>
+</div><div class="cite"><b>Paper interpretation:</b> optimization can focus on intermediate-difficulty questions while paying less attention to hard and easy extremes. — §4, p.5</div><p class="small" style="margin-top:8px;"><b>Related:</b> Dr. GRPO (Liu et al., 2025) removes the per-group std division. In the same population analysis its weight becomes $p(q)(1-p(q))$, which is even more peaked at $p=0.5$; DisCO removes the weight altogether. <code>02_failure_lab.ipynb</code> (Appendix D) plots all three weightings; <code>disco_three_fixes.ipynb</code> §1 races GRPO's and DisCO's.</p><p class="small" style="margin-top:10px;opacity:.8;">Run it: <a href="../notebook/disco_three_fixes.ipynb" style="color:var(--cyan)">disco_three_fixes.ipynb</a> · §1, difficulty bias</p></details>
+
+
+
+
+
+</section>
+<!-- 6 -->
+<section class="slide" data-slug="discriminative-view">
+<span class="kicker">Reframing GRPO</span>
+<h2>GRPO's objective is a weighted discriminative objective</h2>
+<p>Start from GRPO's per-token term $f(x,A)=\min\!\big(xA,\ \mathrm{clip}(x,1{\pm}\varepsilon)A\big)$, with $x$ the importance ratio from the toolkit. Split the rollouts of one question into a correct pile ($A&gt;0$) and a wrong pile ($A&lt;0$). Inside each pile $A$ is one fixed number with a fixed sign, so it pulls straight out of the $\min$:</p>
+<div class="mathbox small" style="text-align:center;">
+    $$ \underbrace{f(x,A)=A\cdot\min(x,1{+}\varepsilon)}_{A&gt;0:\ \text{correct pile}} \qquad \underbrace{f(x,A)=-|A|\cdot\max(x,1{-}\varepsilon)}_{A&lt;0:\ \text{wrong pile}} $$
+  </div>
+<p class="fragment">What remains in each pile is a score of the rollout: $s^+_\theta=\frac1{|o|}\sum_t\min(x_t,1{+}\varepsilon)$ for correct rollouts and $s^-_\theta=\frac1{|o|}\sum_t\max(x_t,1{-}\varepsilon)$ for wrong ones. Substitute them back, factor out the shared $\sqrt{p(1-p)}$, and GRPO's objective <em>is</em>:</p>
+<div class="mathbox fragment">
+    $$ J_0(\theta)= \mathbb{E}_{q}\left[ \sqrt{p(q)(1-p(q))}\; \mathbb{E}_{o^+,o^-} \left[s^+_\theta(o^+,q)-s^-_\theta(o^-,q)\right] \right] $$
+  </div>
+
+
+<details class="more"><summary>Details</summary><p class="small">This is an exact identity in the paper's population binary-reward analysis; finite empirical groups add estimation effects. The KL term is handled separately, and the companion notebook verifies the population identity numerically.</p><div class="card" style="padding:12px 16px;">
+<p class="small" style="margin:0;"><b>Reading the symbols.</b>
+      $o^+$ = a rollout that was <span class="good">correct</span> ($r=1$); $o^-$ = one that was <span class="bad">wrong</span> ($r=0$) — same question, sorted into two piles.
+      $s_\theta(o,q)$ = the <em>score</em> the current model gives a rollout, i.e. how strongly it would produce that text.
+      The superscript on $s$ is GRPO-specific: $s^+$ clips from above, $s^-$ from below, which is why they're two different functions here. DisCO uses one $s_\theta$ for both piles.</p>
+</div></details></section>
+<section class="slide" data-slug="comparison-view">
+<span class="kicker">The comparison view</span>
+<h2>Raise the good, lower the bad</h2>
+<div class="card">
+<svg viewbox="0 0 900 220">
+<defs>
+<marker id="arrow2" markerheight="10" markerwidth="10" orient="auto" refx="8" refy="3">
+<path d="M0,0 L0,6 L9,3 z" fill="#58d8ff"></path>
+</marker>
+</defs>
+<rect class="node goodnode" height="90" rx="18" width="215" x="20" y="55"></rect>
+<text class="svgtext" text-anchor="middle" x="128" y="90">Positive answer</text>
+<text class="svgtext" fill="#62e6a5" text-anchor="middle" x="128" y="115">increase score ↑</text>
+<path d="M241 100 H321" marker-end="url(#arrow2)" stroke="#58d8ff" stroke-width="4"></path>
+<rect class="node" height="90" rx="18" width="215" x="331" y="55"></rect>
+<text class="svgtext" text-anchor="middle" x="438" y="90">Discriminative</text>
+<text class="svgtext" text-anchor="middle" x="438" y="115">objective</text>
+<path d="M552 100 H632" marker-end="url(#arrow2)" stroke="#58d8ff" stroke-width="4"></path>
+<rect class="node badnode" height="90" rx="18" width="238" x="642" y="55"></rect>
+<text class="svgtext" text-anchor="middle" x="761" y="90">Negative answer</text>
+<text class="svgtext" fill="#ff7188" text-anchor="middle" x="761" y="115">decrease score ↓</text>
+</svg>
+</div>
+<div class="two fragment">
+<div class="card">
+<h3>What "discriminative" actually means</h3>
+<p class="small">A <b>generative</b> objective chases an absolute target: make this answer probable. A <b>discriminative</b> one only cares about a comparison: the right answer must outscore the wrong one. Only the <em>gap</em> $s(o^+)-s(o^-)$ appears above — no absolute level does.</p>
+</div>
+<div class="card">
+<h3>Why that's the natural framing here</h3>
+<p class="small">You rarely know how probable a correct solution "should" be, but you always know which of two rollouts was right. And because each question only needs its own answers separated, every question can be judged on equal footing — which is precisely what the $\sqrt{p(q)(1-p(q))}$ out front destroys.</p>
+</div>
+</div>
+
+<details class="more"><summary>Details</summary><p class="">This is exactly the principle behind AUC (area under the ROC curve): rank positives above negatives. DisCO keeps this useful comparison, deletes the problematic weight $\sqrt{p(q)(1-p(q))}$, and redesigns the score functions.</p></details></section>
+<!-- 7 -->
+<section class="slide" data-slug="basic-objective">
+<span class="kicker">DisCO's basic objective</span>
+<h2>Make correct answers outrank incorrect ones</h2>
+<p>Let $s_\theta(o,q)$ score how likely the current model is to generate answer $o$ for question $q$.</p>
+<div class="mathbox">
+    $$ J_1(\theta)= \mathbb{E}_{q}\mathbb{E}_{o^+\sim\pi^+_{\text{old}},\,o^-\sim\pi^-_{\text{old}}} \;\ell\!\left( s_\theta(o^+,q)-s_\theta(o^-,q) \right) $$
+  </div>
+<p class="small">$\ell$ is any surrogate for "positive ranked above negative." The paper uses the identity $\ell(s)=s$ throughout, to keep the comparison with GRPO clean — so read the objective as just the gap itself.</p>
+<p>The goal, for every question equally: $s_\theta(o^+,q) &gt; s_\theta(o^-,q)$ — the correct rollout $o^+$ scores above the wrong one $o^-$. Note the single $s_\theta$: unlike GRPO, both piles are judged by the same yardstick.</p>
+
+<details class="more"><summary>Details</summary><div class="card">
+<h3>Log-likelihood score</h3>
+<div class="mathbox">$$ s_\theta(o,q)=\frac1{|o|}\sum_t\log\pi_\theta(o_t\mid q,o_{&lt;t}) $$</div>
+<p class="small">Directly rewards the model for assigning probability to the positive trajectory.</p>
+</div><div class="card">
+<h3>Likelihood-ratio score</h3>
+<div class="mathbox">$$ s_\theta(o,q)=\frac1{|o|}\sum_t\frac{\pi_\theta(o_t\mid q,o_{&lt;t})}{\pi_{\text{old}}(o_t\mid q,o_{&lt;t})} $$</div>
+<p class="small">Measures how much the new model increases or decreases token probabilities relative to the old one.</p>
+</div></details></section>
+<!-- 8 -->
+<section class="slide" data-slug="dead-gradients">
+<span class="kicker">Why remove clipping</span>
+<h2>Clipping buys safety with dead gradients</h2>
+<div class="two">
+<div>
+<p>Clipping exists for a good reason: one rollout shouldn't be able to yank the policy far from $\pi_{\text{old}}$, because the further you move, the less those reused samples mean anything. So GRPO caps the ratio $x=\pi_\theta/\pi_{\text{old}}$:</p>
+<div class="mathbox">$$ \operatorname{clip}(x,1-\epsilon,1+\epsilon) $$</div>
+<p>The catch is <em>how</em> it enforces that: past the window the objective stops changing with $\theta$, so the derivative isn't damped, it's <b>exactly zero</b>. Drag the slider and watch:</p>
+<input id="clipRatio" max="2.0" min="0.4" step="0.01" type="range" value="1.0"/>
+<div class="readout">
+<div class="box"><div class="val" id="clipRatioVal">1.00</div><div class="lbl">ratio x</div></div>
+<div class="box"><div class="val bad" id="clipGradVal">1.00</div><div class="lbl">clipped grad</div></div>
+<div class="box"><div class="val good" id="rawGradVal">1.00</div><div class="lbl">non-clipped grad</div></div>
+</div>
+<p class="small fragment" style="margin-top:12px;">Past $1+\epsilon$ the token's own term contributes exactly zero gradient to this update: it is not moved less, it is not moved at all. The non-clipping score keeps a live gradient everywhere.</p>
+</div>
+<div class="card">
+<svg aria-label="Gradient of the clipped and non-clipped scores versus the probability ratio" id="clipSvg" role="img" viewbox="0 0 600 345">
+<path fill="none" id="clippedCurve" stroke="#ff7188" stroke-width="5"></path>
+<path fill="none" id="rawCurve" stroke="#62e6a5" stroke-dasharray="8 6" stroke-width="4"></path>
+<line id="clipMarkerLine" stroke="rgba(255,255,255,.25)" x1="0" x2="0" y1="280" y2="50"></line>
+<circle fill="#ff7188" id="clipMarkerDot" r="7"></circle>
+<circle fill="#62e6a5" id="rawMarkerDot" r="6"></circle>
+</svg>
+<p class="small" style="text-align:center;margin:4px 0 0;">positive-advantage token, $\epsilon=0.2$; the non-clipped curve is the log-likelihood score, whose derivative in $x$ is $1/x$</p>
+</div>
+</div>
+</section>
+<section class="slide figure-slide" data-slug="two-jobs">
+<span class="kicker sr-only">Why dead gradients matter</span>
+<h2 class="sr-only">One clipping knob is doing two jobs</h2><figure class="fig"><img alt="PPO's clipped objective against the probability ratio r for a positive and a negative advantage: for A &gt; 0 the objective is flat beyond 1 + epsilon (1.28 with Clip-Higher), and for A &lt; 0 it is flat below 1 - epsilon, so the gradient there is zero." loading="lazy" src="../figures/set/F10_the_clipped_objective.png"/></figure><details class="more"><summary>Details</summary><div class="grid" style="margin-top:14px;">
+<div class="card">
+<h3>It silences the tokens that moved most</h3>
+<p class="small">Which tokens leave the window? The ones the update changed the most — typically <em>rare</em> tokens, where a large relative jump is still a tiny absolute one. Raising a token from 0.02 to 0.03 is exploration; with $\epsilon=0.2$ clipping stops it at 1.2× (0.024) while a common token keeps room to grow. Exploration gets throttled harder than exploitation, and entropy quietly collapses.</p>
+</div>
+<div class="card">
+<h3>Dead gradients slow learning down</h3>
+<p class="small">The paper's own charge: clipping "could cause the vanishing gradient, which may also slow down the learning process," on top of the entropy collapse reported by DAPO. And it's a per-token cap — it says nothing about the policy's total divergence, so thousands of tokens each sitting just inside $1+\epsilon$ still add up. You pay in dead gradients without getting a trust region.</p>
+</div>
+<div class="card">
+<h3>One knob, two jobs</h3>
+<p class="small">$\epsilon$ controls stability <em>and</em> how much signal survives. Tighten it for safety and learning stalls; loosen it for signal and training destabilizes. DAPO just widens the window ($\epsilon_{\text{high}}=0.28$), which moves the wall without removing it. DisCO splits the jobs: a smooth score that never dies, plus an explicit KL constraint that actually bounds drift.</p>
+</div>
+</div><p class="small" style="margin-top:10px;opacity:.8;">Run it: <a href="../notebook/disco_three_fixes.ipynb" style="color:var(--cyan)">disco_three_fixes.ipynb</a> · §2, non-clipping scores</p></details>
+
+
+</section>
+<!-- 9 -->
+<section class="slide" data-slug="kl-constraint">
+<span class="kicker">Stability</span>
+<h2>A KL constraint instead of an always-on penalty</h2>
+<p>Instead of always adding a KL penalty, DisCO solves a constrained problem (a trust region of radius $\delta$ around $\pi_{\text{old}}$):</p>
+<div class="mathbox">
+    $$ \max_\theta J_1(\theta) \quad\text{subject to}\quad D_{\mathrm{KL}}(\pi_{\mathrm{old}}\Vert\pi_\theta)\le\delta $$
+  </div>
+<p class="fragment">Implemented with a squared-hinge penalty:</p>
+<div class="mathbox fragment">
+    $$ \max_\theta\; J_1(\theta) -\beta\left[ D_{\mathrm{KL}}(\pi_{\mathrm{old}}\Vert\pi_\theta)-\delta \right]_+^2 $$
+  </div>
+<div class="grid fragment">
+<div class="card">
+<h3>Inside the trust region</h3>
+<p class="good">KL ≤ δ → penalty gradient is exactly zero.</p>
+<p class="small">The optimizer spends its entire budget improving reasoning, with nothing pulling it back.</p>
+</div>
+<div class="card">
+<h3>Outside the trust region</h3>
+<p class="bad">KL &gt; δ → penalty grows quadratically.</p>
+<p class="small">The update gets pulled back toward the old policy, hard, only when it actually strays.</p>
+</div>
+</div>
+
+
+<details class="more"><summary>Details</summary><p class="small" style="margin-top:6px;">A plain always-on KL term, by contrast, drags on every single step — whether the policy is one step from the reference or a thousand.</p><p class="small" style="margin-top:10px;opacity:.8;">Run it: <a href="../notebook/disco_three_fixes.ipynb" style="color:var(--cyan)">disco_three_fixes.ipynb</a> · §2, constraint vs. tax</p></details></section>
+<!-- 10 -->
+<section class="slide figure-slide" data-slug="sparse-rewards">
+<span class="kicker sr-only">Sparse rewards</span>
+<h2 class="sr-only">Not all negative examples are equally useful</h2><figure class="fig"><img alt="DisCO's hard-negative weighting: the softmax weight on one high-scoring confuser among 100 negatives rises from 1% to 98.8% as the temperature falls to 0.1; with that weighting the confuser's score drops from 0.900 to 0.321 in 80 steps, compared with 0.898 under a plain average." loading="lazy" src="../figures/set/F11_disco_hard_negatives.png"/></figure><details class="more"><summary>Details</summary><p>A difficult question produces <b>1 positive</b> and <b>100 negatives</b>, scored like this:</p><div class="two">
+<div class="card" style="padding:14px 18px;">
+<table style="font-size:.95rem;">
+<tr><th>Answer</th><th>Score</th><th>Beaten by $o^+$?</th></tr>
+<tr><td class="bad">$o^-_1$ (the dangerous one)</td><td>0.900</td><td class="bad">no — it outranks the positive</td></tr>
+<tr><td class="good">$o^+$</td><td>0.500</td><td>—</td></tr>
+<tr><td>$o^-_2 \ldots o^-_{100}$</td><td>0.001</td><td class="good">yes, all 99 of them</td></tr>
+</table>
+</div>
+<div>
+<p class="small">AUC asks one question: pick a random negative — does the positive outrank it? That's a <em>count of pairs</em>, so it just tallies how many negatives fall below 0.5:</p>
+<div class="mathbox">$$ \mathrm{AUC}=P\big(s(o^+)&gt;s(o^-)\big)=\frac{99}{100}=0.99 $$</div>
+<p class="small bad">99% "correct" — while the single answer the model is <em>most</em> likely to actually produce is wrong. One bad negative can only ever cost you 1%.</p>
+</div>
+</div><p class="">The plain objective $J_1$ has the identical blind spot, because averaging hands every negative the same $\tfrac1{100}$ share of the gradient: $J_1 = 0.5 - \overline{s(o^-)} = 0.5-0.00999 \approx 0.49$. Looks finished. Isn't.</p><p class="">So DisCO replaces the average over negatives with a softmax-weighted one, temperature $\tau$:</p><div class="mathbox">
+    $$ J_2(\theta)= -\mathbb{E}_{q,o^+}\left[ \tau\log\mathbb{E}_{o^-}\exp\left(\frac{s_\theta(o^-,q)-s_\theta(o^+,q)}{\tau}\right) \right] $$
+  </div></details>
+
+
+
+
+
+</section>
+<!-- 11 -->
+<section class="slide" data-slug="hard-negatives" style="padding-top:2vh;padding-bottom:5vh;">
+<span class="kicker">Why the log-sum-exp matters</span>
+<h2>Softly focus on the worst negative</h2>
+<div class="two">
+<div>
+<p>Differentiate $J_2$ and the fix appears. Writing $d_i=s(o^-_i)-s(o^+)$, each negative's share of the gradient is no longer $\tfrac1n$ but</p>
+<div class="mathbox small" style="text-align:center;">$$ w_i=\frac{e^{d_i/\tau}}{\sum_j e^{d_j/\tau}}=\operatorname{softmax}\!\big(d_i/\tau\big) $$</div>
+<p class="small">Same objective shape, reweighted attention. The two limits are the whole story: $\tau\to\infty$ flattens the softmax to $1/n$ and gives back the plain average; $\tau\to0$ concentrates it on $\arg\max_i d_i$, so $J_2\to s(o^+)-\max_i s(o^-_i)$ — only the most dangerous negative counts. Log-sum-exp <em>is</em> a smooth maximum.</p>
+<p class="small">On the previous example with $\tau=0.1$: $e^{0.9/0.1}=8103$ against $99\times e^{0.001/0.1}\approx100$, so the dangerous negative takes <b>98.8%</b> of the gradient instead of 1%. Drag $\tau$ and watch it happen.</p>
+<input id="tauSlider" max="1.3" min="-2" step="0.02" type="range" value="1"/>
+<div class="readout">
+<div class="box"><div class="val" id="tauVal">10.0</div><div class="lbl">τ</div></div>
+<div class="box"><div class="val bad" id="hardWeightVal">1%</div><div class="lbl">weight on hard negative</div></div>
+</div>
+<p class="small fragment" style="margin-top:10px;">At high τ, attention spreads evenly — you recover the plain average (and its blind spot). Push τ small, and nearly 100% of the gradient locks onto the one negative that's actually fooling the model.</p>
+</div>
+<div class="card">
+<svg aria-label="Scores of five negative answers and the share of the gradient each receives" id="hardNegSvg" role="img" viewbox="0 0 600 345"></svg>
+<p class="small" style="text-align:center;margin:4px 0 0;">five negatives for display; bar height = score, label above = share of the gradient at the current $\tau$ · <span class="bad">red</span> = the hard negative, <span class="good">dashed green</span> = the correct answer's score</p>
+</div>
+</div>
+
+<details class="more"><summary>Details</summary><p class="small" style="margin-top:10px;opacity:.8;">Run it: <a href="../notebook/disco_three_fixes.ipynb" style="color:var(--cyan)">disco_three_fixes.ipynb</a> · §3, imbalanced rollouts</p></details></section>
+<!-- 12 -->
+<section class="slide" data-slug="algorithm">
+<span class="kicker">The complete algorithm</span>
+<h2>DisCO training loop</h2>
+<div class="card">
+<svg viewbox="0 0 1000 220">
+<defs>
+<marker id="arrow3" markerheight="10" markerwidth="10" orient="auto" refx="8" refy="3">
+<path d="M0,0 L0,6 L9,3 z" fill="#58d8ff"></path>
+</marker>
+</defs>
+<rect class="node" height="80" rx="15" width="140" x="15" y="80"></rect>
+<text class="svgtext" text-anchor="middle" x="85" y="115">Sample</text>
+<text class="svgtext" text-anchor="middle" x="85" y="140">questions</text>
+<path d="M160 120 H235" marker-end="url(#arrow3)" stroke="#58d8ff" stroke-width="3"></path>
+<rect class="node" height="80" rx="15" width="150" x="245" y="80"></rect>
+<text class="svgtext" text-anchor="middle" x="320" y="115">Generate n</text>
+<text class="svgtext" text-anchor="middle" x="320" y="140">responses</text>
+<path d="M400 120 H475" marker-end="url(#arrow3)" stroke="#58d8ff" stroke-width="3"></path>
+<rect class="node" height="80" rx="15" width="150" x="485" y="80"></rect>
+<text class="svgtext" text-anchor="middle" x="560" y="115">Verify and</text>
+<text class="svgtext" text-anchor="middle" x="560" y="140">split + / −</text>
+<path d="M640 120 H715" marker-end="url(#arrow3)" stroke="#58d8ff" stroke-width="3"></path>
+<rect class="node" height="80" rx="15" width="120" x="725" y="80"></rect>
+<text class="svgtext" text-anchor="middle" x="785" y="115">Compute</text>
+<text class="svgtext" text-anchor="middle" x="785" y="140">J₂ and KL</text>
+<path d="M850 120 H925" marker-end="url(#arrow3)" stroke="#58d8ff" stroke-width="3"></path>
+<rect class="node goodnode" height="80" rx="15" width="60" x="930" y="80"></rect>
+<text class="svgtext" text-anchor="middle" x="960" y="125">θ′</text>
+<path d="M960 165 C960 205 85 205 85 168" fill="none" marker-end="url(#arrow3)" stroke="#a78bfa" stroke-width="3"></path>
+<circle class="flow-dot looppath"></circle>
+<circle class="flow-dot looppath2"></circle>
+<circle class="flow-dot looppath3"></circle>
+<circle class="flow-dot looppath4"></circle>
+<circle class="flow-dot looppath5"></circle>
+</svg>
+</div>
+<ol>
+<li class="fragment">Copy the current policy into $\pi_{\text{old}}$.</li>
+<li class="fragment">Sample responses and split them into positive and negative sets.</li>
+<li class="fragment">Compute the hard-negative objective $J_2$.</li>
+<li class="fragment">Estimate $D_{\mathrm{KL}}(\pi_{\text{old}}\Vert\pi_\theta)$.</li>
+<li class="fragment">Update with the discriminative gradient plus the (usually dormant) constraint gradient.</li>
+</ol>
+<p class="small" style="margin-top:10px;opacity:.8;">Run it: <a href="../notebook/disco_three_fixes.ipynb" style="color:var(--cyan)">disco_three_fixes.ipynb</a> · §4, one DisCO loop end to end</p>
+</section>
+<!-- 14 -->
+<section class="slide figure-slide" data-slug="results">
+<span class="kicker sr-only">Results and ablations</span>
+<h2 class="sr-only">Performance improves because each component has a job</h2><figure class="fig"><img alt="Reported results: average Pass@1 over six math benchmarks for GRPO versus the best DisCO variant (1.5B: 0.457 vs 0.533; 7B: 0.592 vs 0.627; Llama 8B: 0.516 vs 0.584), and S-GRPO's 40.4 to 61.1% shorter reasoning with an accuracy change of +0.72 to +3.92 points." loading="lazy" src="../figures/set/F14b_disco_and_s_grpo_results.png"/></figure><details class="more"><summary>Details</summary><p class="small">DeepScaleR's ~40.3k training pairs; average Pass@1 over six math benchmarks with an 8k response budget.</p><div class="two" style="align-items:start;">
+<div class="card">
+<h3>Average Pass@1</h3>
+<table>
+<thead><tr><th>Model</th><th>GRPO</th><th>DisCO</th></tr></thead>
+<tbody>
+<tr><td>Qwen 1.5B</td><td>0.457</td><td class="good"><b>0.533</b></td></tr>
+<tr><td>Qwen 7B</td><td>0.592</td><td class="good"><b>0.627</b></td></tr>
+<tr><td>Llama 8B</td><td>0.516</td><td class="good"><b>0.584</b></td></tr>
+</tbody>
+</table>
+<p class="small">DAPO reaches 0.473 in the reported 1.5B comparison.</p>
+</div>
+<div class="card">
+<h3>Component roles</h3>
+<p class="small"><b>Remove $\sqrt{p(1-p)}$:</b> address difficulty bias.</p>
+<p class="small"><b>Non-clipping score:</b> retain gradients beyond a clip wall.</p>
+<p class="small"><b>KL constraint:</b> control policy drift explicitly.</p>
+<p class="small"><b>DRO / $J_2$:</b> focus on dangerous negatives.</p>
+</div>
+</div><div class="cite">Results: Table 2, p.8. Component ablations: Figure 4 (right), p.10.</div></details>
+
+
+
+</section>
+<!-- 17 -->
+<section class="slide" data-slug="check">
+<span class="kicker">Interactive recap</span>
+<h2>Can you explain DisCO?</h2>
+<div class="card">
+<p><b>Question 1:</b> Which questions receive the largest GRPO weight?</p>
+<button onclick="answer('q1','easy')">Very easy</button>
+<button onclick="answer('q1','medium')">Medium difficulty</button>
+<button onclick="answer('q1','hard')">Very hard</button>
+<p class="quiz-answer" id="q1"></p>
+</div>
+<div class="card">
+<p><b>Question 2:</b> What does the discriminative objective try to do?</p>
+<button onclick="answer('q2','raise')">Raise positive scores and lower negative scores</button>
+<button onclick="answer('q2','entropy')">Maximize entropy only</button>
+<p class="quiz-answer" id="q2"></p>
+</div>
+<div class="card">
+<p><b>Question 3:</b> When is the squared-hinge KL penalty active?</p>
+<button onclick="answer('q3','inside')">Always</button>
+<button onclick="answer('q3','outside')">Only when KL exceeds δ</button>
+<p class="quiz-answer" id="q3"></p>
+</div>
+</section>
+<!-- 18 -->
+<section class="slide" data-slug="takeaway">
+<span class="kicker">Final takeaway</span>
+<h2>DisCO changes the question being optimized</h2>
+<div class="two">
+<div class="card">
+<h3>GRPO asks:</h3>
+<p>"How much better was this answer than the group average?"</p>
+<div class="mathbox">$$ \text{group-relative advantage} $$</div>
+<p class="bad">This quietly creates difficulty-dependent weighting.</p>
+</div>
+<div class="card">
+<h3>DisCO asks:</h3>
+<p>"Does the model score correct answers above incorrect ones — especially the dangerous ones?"</p>
+<div class="mathbox">$$ s_\theta(o^+,q)\;-\;s_\theta(o^-,q) $$</div>
+<p class="good">This directly matches the learning goal.</p>
+</div>
+</div>
+<p class="small" style="margin-top:12px;text-align:center;">$o^+$ a <span class="good">correct</span> rollout · $o^-$ a <span class="bad">wrong</span> one · $s_\theta$ how strongly the current model would produce it</p>
+<div class="card" style="margin-top:26px;text-align:center">
+<p style="font-size:1.4rem;margin:0;">
+<b>DisCO = discriminative comparison (no difficulty weight) + hard-negative focus + KL-constrained stability</b>
+</p>
+</div>
+<p style="text-align:center;margin-top:18px;"><b>Next →</b> run <a href="../notebook/disco_three_fixes.ipynb" style="color:var(--cyan)">disco_three_fixes.ipynb</a>, then continue with the <a href="sgrpo_intro.html" style="color:var(--cyan)">S-GRPO deck</a>.</p>
+
+<details class="more"><summary>Details</summary><p class="small" style="text-align:center;margin-top:8px;">
+<a href="https://arxiv.org/abs/2505.12366" style="color:var(--cyan)" target="_blank">Paper</a> ·
+    <a href="https://github.com/optimization-ai/DisCO" style="color:var(--cyan)" target="_blank">Code</a> ·
+    <a href="../notebook/disco_three_fixes.ipynb" style="color:var(--cyan)">Companion notebook</a> ·
+    <a href="grpo_intro.html" style="color:var(--cyan)">GRPO deck</a> ·
+    <a href="sgrpo_intro.html" style="color:var(--cyan)">S-GRPO deck</a>
+</p></details></section>
+<!-- 19: REFERENCES -->
+<section class="slide" data-slug="references">
+<span class="kicker">References</span>
+<h2>Sources cited in this deck</h2>
+<ol class="reflist">
+<li>G. Li, M. C. Lin, T. Galanti, Z. Tu and T. Yang. <a href="https://arxiv.org/abs/2505.12366" target="_blank">DisCO: Reinforcing large reasoning models with discriminative constrained optimization</a>. NeurIPS, 2025. (DisCO; all section, table and figure numbers in this deck)</li>
+<li>Z. Shao et al. <a href="https://arxiv.org/abs/2402.03300" target="_blank">DeepSeekMath: Pushing the limits of mathematical reasoning in open language models</a>. arXiv:2402.03300, 2024. (GRPO)</li>
+<li>Q. Yu et al. <a href="https://arxiv.org/abs/2503.14476" target="_blank">DAPO: An open-source LLM reinforcement learning system at scale</a>. NeurIPS, 2025. (Clip-Higher, entropy collapse)</li>
+<li>Z. Liu et al. <a href="https://arxiv.org/abs/2503.20783" target="_blank">Understanding R1-Zero-like training: A critical perspective</a>. arXiv:2503.20783, 2025. (Dr. GRPO)</li>
+<li>J. Schulman et al. <a href="https://arxiv.org/abs/1707.06347" target="_blank">Proximal policy optimization algorithms</a>. arXiv:1707.06347, 2017. (clipped objective)</li>
+<li>J. Schulman et al. <a href="https://arxiv.org/abs/1502.05477" target="_blank">Trust region policy optimization</a>. ICML, 2015. (KL trust region)</li>
+</ol>
+</section>
+</div>
+<div class="dots" id="dots"></div>
+<div class="controls">
+<button aria-label="previous slide" class="ghost" onclick="prev()">←</button>
+<span id="counter">1 / 20</span>
+<button class="primary" onclick="next()">Next →</button>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  if (window.renderMathInElement) {
+    renderMathInElement(document.body, {
+      delimiters: [
+        {left: "$$", right: "$$", display: true},
+        {left: "\\(", right: "\\)", display: false},
+        {left: "$", right: "$", display: false}
+      ],
+      throwOnError: false
+    });
+  } else {
+    showMathWarning();
+  }
+  init();
+});
+
+/* Shown only if the bundled KaTeX files could not be loaded (e.g. the deck was opened without slides/vendor/). */
+function showMathWarning(){
+  const w = document.createElement('div');
+  w.className = 'mathwarn';
+  w.innerHTML = '<b>Equations cannot be rendered:</b> this copy of the deck could not load its math library from '
+    + '<code>slides/vendor/katex/</code>. Open the deck from the fully extracted folder, or use the self-contained decks in the release ZIP.';
+  document.body.appendChild(w);
+}
+
+let index = 0;
+let slides = [];
+let dots = [];
+
+function fragmentsOf(i){ return Array.from(slides[i].querySelectorAll(".fragment")); }
+
+function update(){
+  slides.forEach((s,i)=>s.classList.toggle('active', i===index));
+  dots.forEach((d,i)=>d.classList.toggle('active', i===index));
+  document.getElementById('counter').textContent = (index+1)+' / '+slides.length;
+  document.getElementById('progress').style.width = ((index+1)/slides.length*100)+'%';
+  try { history.replaceState(null, '', '#'+(index+1)); } catch (e) { /* some file:// contexts forbid it */ }
+  if (index === resultsSlideIndex && !resultsAnimated) {
+    resultsAnimated = true;
+    animateResultBars();
+  }
+}
+/* deep links: disco_intro.html#12 opens slide 12 */
+function slideFromHash(){ const n = parseInt((location.hash||'').slice(1), 10); return Number.isFinite(n) ? n-1 : null; }
+window.addEventListener('hashchange', ()=>{ const h = slideFromHash(); if (h !== null && h !== index) goTo(h); });
+
+function next(){
+  const pending = fragmentsOf(index).filter(f => !f.classList.contains('visible'));
+  if (pending.length){ pending[0].classList.add('visible'); return; }
+  if (index < slides.length-1){ index++; update(); }
+}
+function prev(){
+  if (index > 0){ index--; update(); fragmentsOf(index).forEach(f=>f.classList.add('visible')); }
+}
+function goTo(i){
+  index = Math.max(0, Math.min(slides.length-1, i));
+  update();
+  fragmentsOf(index).forEach(f=>f.classList.add('visible'));
+}
+
+document.addEventListener('keydown', e=>{
+  if (e.target && e.target.tagName === 'INPUT') return;
+  if (e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); next(); }
+  if (e.key==='ArrowLeft'){ e.preventDefault(); prev(); }
+  if (e.key==='Home'){ goTo(0); }
+  if (e.key==='End'){ goTo(slides.length-1); }
+});
+
+let resultsSlideIndex = -1;
+let resultsAnimated = false;
+
+function init(){
+  slides = Array.from(document.querySelectorAll('.slide'));
+  const dotsWrap = document.getElementById('dots');
+  slides.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.addEventListener('click', ()=>goTo(i));
+    dotsWrap.appendChild(d);
+    if (s.querySelector('#resultsBars')) resultsSlideIndex = i;
+  });
+  dots = Array.from(dotsWrap.children);
+  const h = slideFromHash();
+  if (h !== null) goTo(h); else update();
+  initDifficultyCurve();
+  initToolkitCards();
+  initAucDemo();
+  initClipDemo();
+  initHardNegativeDemo();
+}
+
+/* ---------- tiny SVG plotting helpers: axes with ticks, labels, legends ---------- */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, text){
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in (attrs||{})) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) setRichText(e, text);
+  return e;
+}
+/* "s_{θ}(o^{−})" -> text with sub/superscript tspans */
+function setRichText(node, s){
+  String(s).split(/([_^]\{[^}]*\})/).forEach(p=>{
+    const m = p.match(/^([_^])\{([^}]*)\}$/);
+    if (m){
+      const t = document.createElementNS(SVGNS, 'tspan');
+      t.setAttribute('baseline-shift', m[1]==='_' ? 'sub' : 'super');
+      t.setAttribute('font-size', '75%');
+      t.textContent = m[2];
+      node.appendChild(t);
+    } else if (p) node.appendChild(document.createTextNode(p));
+  });
+}
+/* o = {box:{x0,x1,y0,y1}, xs, ys, xTicks:[[value,label]], yTicks, xLabel, yLabel, grid}; y0 is the bottom edge */
+function drawAxes(svg, o){
+  const b = o.box, g = el('g', {});
+  (o.yTicks||[]).forEach(([v,lab])=>{
+    const y = o.ys(v);
+    if (o.grid) g.appendChild(el('line', {x1:b.x0, y1:y, x2:b.x1, y2:y, stroke:'#9bb0ca', opacity:.14}));
+    g.appendChild(el('line', {x1:b.x0-5, y1:y, x2:b.x0, y2:y, stroke:'#9bb0ca'}));
+    g.appendChild(el('text', {x:b.x0-8, y:y+4, 'text-anchor':'end', class:'ticktext'}, lab));
+  });
+  (o.xTicks||[]).forEach(([v,lab])=>{
+    const x = o.xs(v);
+    g.appendChild(el('line', {x1:x, y1:b.y0, x2:x, y2:b.y0+5, stroke:'#9bb0ca'}));
+    g.appendChild(el('text', {x:x, y:b.y0+19, 'text-anchor':'middle', class:'ticktext'}, lab));
+  });
+  g.appendChild(el('line', {x1:b.x0, y1:b.y0, x2:b.x1, y2:b.y0, stroke:'#9bb0ca'}));
+  g.appendChild(el('line', {x1:b.x0, y1:b.y0, x2:b.x0, y2:b.y1, stroke:'#9bb0ca'}));
+  if (o.xLabel) g.appendChild(el('text', {x:(b.x0+b.x1)/2, y:b.y0+40, 'text-anchor':'middle', class:'axislabel'}, o.xLabel));
+  if (o.yLabel){
+    const cx = b.x0 - (o.yLabelOffset || 50), cy = (b.y0+b.y1)/2;
+    g.appendChild(el('text', {x:cx, y:cy, 'text-anchor':'middle', class:'axislabel', transform:'rotate(-90 '+cx+' '+cy+')'}, o.yLabel));
+  }
+  svg.insertBefore(g, svg.firstChild);
+}
+/* items = [{color, dash, label, marker, swatch}] drawn as a column starting at (x,y) */
+function drawLegend(svg, x, y, items){
+  items.forEach((it,i)=>{
+    const yy = y + i*20;
+    if (it.marker) svg.appendChild(el('circle', {cx:x+11, cy:yy-4, r:5.5, fill:it.color}));
+    else if (it.swatch) svg.appendChild(el('rect', {x:x+2, y:yy-11, width:18, height:12, fill:it.color, opacity:it.opacity||1, rx:2}));
+    else svg.appendChild(el('line', {x1:x, y1:yy-4, x2:x+22, y2:yy-4, stroke:it.color, 'stroke-width':3.5, 'stroke-dasharray':it.dash||''}));
+    svg.appendChild(el('text', {x:x+30, y:yy, class:'legendtext'}, it.label));
+  });
+}
+
+/* ---------- math toolkit flip cards ---------- */
+function initToolkitCards(){
+  document.querySelectorAll('.card3d').forEach(c => {
+    c.addEventListener('click', () => c.classList.toggle('flipped'));
+  });
+}
+
+/* ---------- AUC / ROC demo ---------- */
+function initAucDemo(){
+  const positives = [0.3, 0.5, 0.62, 0.8, 0.9];
+  const negatives = [0.1, 0.25, 0.45, 0.55, 0.7];
+
+  // overall AUC: fraction of (pos, neg) pairs correctly ranked, ties count half
+  let correct = 0, totalPairs = 0;
+  positives.forEach(p => negatives.forEach(n => {
+    totalPairs++;
+    if (p > n) correct += 1;
+    else if (p === n) correct += 0.5;
+  }));
+  const auc = correct / totalPairs;
+  document.getElementById('aucVal').textContent = auc.toFixed(2);
+
+  // number line dots (positioned by percentage so it scales with the container)
+  const line = document.getElementById('aucNumberline');
+  function pctX(v){ return (8 + v*84) + '%'; } // keep an 8% margin on each side
+  positives.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'dot posdot';
+    d.style.left = pctX(v);
+    line.appendChild(d);
+  });
+  negatives.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'dot negdot';
+    d.style.left = pctX(v);
+    line.appendChild(d);
+  });
+
+  // ROC curve: sweep threshold from 1 to 0, plot (FPR, TPR)
+  const rocX0 = 50, rocX1 = 380, rocY0 = 350, rocY1 = 30;
+  function rates(threshold){
+    const tp = positives.filter(v => v >= threshold).length;
+    const fp = negatives.filter(v => v >= threshold).length;
+    return { tpr: tp/positives.length, fpr: fp/negatives.length };
+  }
+  const thresholds = Array.from(new Set([0, 1, ...positives, ...negatives])).sort((a,b)=>b-a);
+  const rocPts = thresholds.map(t => rates(t));
+  const pathPts = rocPts.map(r => (rocX0 + r.fpr*(rocX1-rocX0)).toFixed(1) + "," + (rocY0 - r.tpr*(rocY0-rocY1)).toFixed(1));
+  document.getElementById('rocCurve').setAttribute('d', 'M' + pathPts.join(' L'));
+  document.getElementById('rocFill').setAttribute('d',
+    'M' + rocX0 + ',' + rocY0 + ' L' + pathPts.join(' L') + ' L' + rocX1 + ',' + rocY0 + ' Z');
+  const rocSvg = document.getElementById('rocSvg');
+  drawAxes(rocSvg, {box:{x0:rocX0, x1:rocX1, y0:rocY0, y1:rocY1},
+    xs:v=>rocX0+v*(rocX1-rocX0), ys:v=>rocY0-v*(rocY0-rocY1),
+    xTicks:[[0,'0'],[0.5,'0.5'],[1,'1']], yTicks:[[0,'0'],[0.5,'0.5'],[1,'1']],
+    xLabel:'false positive rate', yLabel:'true positive rate', yLabelOffset:30});
+  drawLegend(rocSvg, rocX0+150, rocY0-62, [
+    {color:'#58d8ff', label:'ROC of the model\u2019s scores'},
+    {color:'#58d8ff', swatch:true, opacity:.25, label:'area = AUC = '+auc.toFixed(2)},
+    {color:'#6b86a8', dash:'5 5', label:'random ranking (AUC = 0.5)'}]);
+
+  const slider = document.getElementById('aucThreshold');
+  const threshLine = document.getElementById('aucThreshLine');
+  const tprEl = document.getElementById('aucTPR');
+  const fprEl = document.getElementById('aucFPR');
+  const rocDot = document.getElementById('rocDot');
+
+  function render(){
+    const t = parseFloat(slider.value);
+    threshLine.style.left = pctX(t);
+    const r = rates(t);
+    tprEl.textContent = r.tpr.toFixed(2);
+    fprEl.textContent = r.fpr.toFixed(2);
+    rocDot.setAttribute('cx', rocX0 + r.fpr*(rocX1-rocX0));
+    rocDot.setAttribute('cy', rocY0 - r.tpr*(rocY0-rocY1));
+  }
+  slider.addEventListener('input', render);
+  render();
+}
+
+/* ---------- difficulty weight demo ---------- */
+function wgrpo(p){ return Math.sqrt(p*(1-p)); }
+// plot box: p=0 -> x=80, p=1 -> x=560; omega=0 -> y=280, omega=0.5 -> y=70
+function pToX(p){ return 80 + p*480; }
+function wToY(w){ return 280 - (w/0.5)*210; }
+function initDifficultyCurve(){
+  const curve=document.getElementById('curve');
+  if(!curve) return;
+  let d='';
+  for(let i=0;i<=200;i++){
+    const p=i/200;
+    d += (i?' L':'M') + pToX(p).toFixed(1) + ' ' + wToY(wgrpo(p)).toFixed(1);
+  }
+  curve.setAttribute('d', d);
+  drawLegend(document.getElementById('omegaSvg'), 215, 238, [
+    {color:'#58d8ff', label:'GRPO: ω(q) = √(p(1 − p))'},
+    {color:'#62e6a5', marker:true, label:'selected question'}]);
+}
+function showDifficulty(level){
+  const t=document.getElementById('difficultyText');
+  const data={
+    easy:   { p:0.9, msg:'<b>Easy, p(q)=0.9.</b> &omega; = &radic;(p(1&minus;p)) = &radic;(0.9&times;0.1) = &radic;0.09 = 0.30. The model already solves it 9 times in 10, so its remaining mistakes are turned down to 30% volume.' },
+    medium: { p:0.5, msg:'<b>Medium, p(q)=0.5.</b> &omega; = &radic;(0.5&times;0.5) = &radic;0.25 = 0.50 &mdash; the largest value &radic;(p(1&minus;p)) can ever take. Coin-flip questions get full volume.' },
+    hard:   { p:0.1, msg:'<b>Hard, p(q)=0.1.</b> &omega; = &radic;(0.1&times;0.9) = &radic;0.09 = 0.30. A rare, hard-won success is turned down to the same 30% as an easy question\'s leftover mistake &mdash; and at p(q)=0.01 it drops to &radic;0.0099 &asymp; 0.10, a fifth of the coin-flip question.' }
+  };
+  const d = data[level];
+  t.innerHTML = d.msg;
+  const marker = document.getElementById('wMarker');
+  const label = document.getElementById('wMarkerLabel');
+  const x = pToX(d.p), y = wToY(wgrpo(d.p));
+  marker.setAttribute('opacity', 1);
+  marker.setAttribute('cx', x);
+  marker.setAttribute('cy', y);
+  label.setAttribute('x', Math.min(Math.max(x, 120), 520));
+  label.setAttribute('y', Math.max(y - 18, 40));
+  label.textContent = 'p=' + d.p.toFixed(2) + ', \u03c9=' + wgrpo(d.p).toFixed(2);
+}
+
+/* ---------- clipping demo ---------- */
+function initClipDemo(){
+  const svgX0=70, svgX1=560, svgY0=280, svgY1=60, gMax=2.5;
+  const eps = 0.2;
+  function clippedGrad(x){ return x < 1+eps ? 1.0 : 0.0; }
+  function rawGrad(x){ return 1.0/x; } // log-likelihood style score, never zero
+  function xToPixel(x){ return svgX0 + ((x-0.4)/(2.0-0.4))*(svgX1-svgX0); }
+  // gradient axis spans 0..gMax, so the 1/x curve stays inside the plot box
+  function gradToPixel(g){ return svgY0 - (g/gMax)*(svgY0-svgY1); }
+  // build curves
+  let clippedPts = [], rawPts = [];
+  for (let i=0;i<=100;i++){
+    const x = 0.4 + i/100*(2.0-0.4);
+    clippedPts.push(xToPixel(x).toFixed(1)+","+gradToPixel(clippedGrad(x)*1.0).toFixed(1));
+    rawPts.push(xToPixel(x).toFixed(1)+","+gradToPixel(Math.min(rawGrad(x),2.4)).toFixed(1));
+  }
+  document.getElementById('clippedCurve').setAttribute('d', 'M'+clippedPts.join(' L'));
+  document.getElementById('rawCurve').setAttribute('d', 'M'+rawPts.join(' L'));
+  const clipSvg = document.getElementById('clipSvg');
+  drawAxes(clipSvg, {box:{x0:svgX0, x1:svgX1, y0:svgY0, y1:svgY1}, xs:xToPixel, ys:gradToPixel,
+    xTicks:[[0.4,'0.4'],[0.8,'0.8'],[1.0,'1.0'],[1.2,'1.2 = 1+ε'],[1.6,'1.6'],[2.0,'2.0']],
+    yTicks:[[0,'0'],[1,'1'],[2,'2']],
+    xLabel:'probability ratio x = π_{θ} / π_{old}', yLabel:'gradient of the score, d(score)/dx', grid:true, yLabelOffset:40});
+  drawLegend(clipSvg, svgX1-210, svgY1+10, [
+    {color:'#ff7188', label:'clipped score (GRPO)'},
+    {color:'#62e6a5', dash:'8 6', label:'non-clipped score (DisCO)'}]);
+
+  const slider = document.getElementById('clipRatio');
+  const ratioVal = document.getElementById('clipRatioVal');
+  const clipGradVal = document.getElementById('clipGradVal');
+  const rawGradVal = document.getElementById('rawGradVal');
+  const clipDot = document.getElementById('clipMarkerDot');
+  const rawDot = document.getElementById('rawMarkerDot');
+  const markerLine = document.getElementById('clipMarkerLine');
+
+  function renderClip(){
+    const x = parseFloat(slider.value);
+    ratioVal.textContent = x.toFixed(2);
+    const cg = clippedGrad(x);
+    const rg = Math.min(rawGrad(x), 2.4);
+    clipGradVal.textContent = cg.toFixed(2);
+    clipGradVal.className = 'val ' + (cg===0 ? 'bad' : 'good');
+    rawGradVal.textContent = rawGrad(x).toFixed(2);
+    const px = xToPixel(x);
+    clipDot.setAttribute('cx', px); clipDot.setAttribute('cy', gradToPixel(cg));
+    rawDot.setAttribute('cx', px); rawDot.setAttribute('cy', gradToPixel(rg));
+    markerLine.setAttribute('x1', px); markerLine.setAttribute('x2', px);
+  }
+  slider.addEventListener('input', renderClip);
+  renderClip();
+}
+
+/* ---------- hard negative / DRO demo ---------- */
+function initHardNegativeDemo(){
+  /* five negative answers; the 4th is the "dangerous" one that outscores the positive (s(o+) = 0.5) */
+  const negScores = [0.02, 0.08, 0.01, 0.9, 0.05], HARD = 3, posScore = 0.5;
+  const slider = document.getElementById('tauSlider');
+  const tauVal = document.getElementById('tauVal');
+  const hardWeightVal = document.getElementById('hardWeightVal');
+  const svg = document.getElementById('hardNegSvg');
+  const box = {x0:80, x1:570, y0:270, y1:40};
+  const slot = (box.x1-box.x0)/negScores.length;
+  const xs = i => box.x0 + slot*(i+0.5), ys = v => box.y0 - v*(box.y0-box.y1);
+  drawAxes(svg, {box, xs, ys,
+    xTicks:negScores.map((_,i)=>[i, i===HARD ? 'o^{−}_{'+(i+1)+'} (hard)' : 'o^{−}_{'+(i+1)+'}']),
+    yTicks:[[0,'0'],[0.25,'0.25'],[0.5,'0.50'],[0.75,'0.75'],[1,'1.00']],
+    xLabel:'negative (incorrect) answers of one question', yLabel:'score s_{θ}(o^{−})', grid:true, yLabelOffset:52});
+  svg.appendChild(el('line', {x1:box.x0, y1:ys(posScore), x2:box.x1, y2:ys(posScore), stroke:'#62e6a5', 'stroke-width':2, 'stroke-dasharray':'7 5'}));
+  svg.appendChild(el('text', {x:box.x0+8, y:ys(posScore)-8, 'text-anchor':'start', class:'annot'}, 'correct answer\u2019s score s_{θ}(o^{+}) = 0.5'));
+  const bars = [], labels = [];
+  negScores.forEach((s,i)=>{
+    const w = Math.min(56, slot*0.55);
+    const b = el('rect', {x:xs(i)-w/2, y:ys(s), width:w, height:Math.max(ys(0)-ys(s), 2), rx:4, fill:i===HARD ? '#ff7188' : '#6b86a8'});
+    svg.appendChild(b); bars.push(b);
+    const t = el('text', {x:xs(i), y:ys(s)-8, 'text-anchor':'middle', class:'annot'}, '');
+    svg.appendChild(t); labels.push(t);
+  });
+
+  function render(){
+    const tau = Math.pow(10, parseFloat(slider.value)); // log scale: 0.01 .. ~20
+    tauVal.textContent = tau.toFixed(2);
+    /* softmax over d_i = s(o-_i) - s(o+); the shift by s(o+) cancels */
+    const exps = negScores.map(s => Math.exp((s-posScore)/tau));
+    const sum = exps.reduce((a,b)=>a+b,0);
+    const weights = exps.map(e=>e/sum);
+    hardWeightVal.textContent = (weights[HARD]*100).toFixed(1)+'%';
+    weights.forEach((w,i)=>{
+      labels[i].textContent = (w*100).toFixed(w < 0.1 ? 1 : 0)+'%';
+      bars[i].setAttribute('opacity', (0.35 + 0.65*Math.min(1, w*2.5)).toFixed(2));
+    });
+    bars[HARD].style.filter = 'drop-shadow(0 0 '+(4 + weights[HARD]*22).toFixed(0)+'px #ff7188)';
+  }
+  slider.addEventListener('input', render);
+  render();
+}
+
+/* ---------- results bar chart ---------- */
+function animateResultBars(){
+  const MAX = 0.65;
+  document.querySelectorAll('#resultsBars .fill').forEach((f, i) => {
+    const w = parseFloat(f.getAttribute('data-w'));
+    setTimeout(()=>{ f.style.width = ((w/MAX)*100).toFixed(1)+'%'; }, 90*i);
+  });
+}
+
+/* ---------- quiz ---------- */
+function answer(id, value){
+  const el = document.getElementById(id);
+  const correct = {
+    q1: ['medium', 'Correct — &radic;(p(1&minus;p)) peaks at p=0.5.'],
+    q2: ['raise', 'Correct — DisCO raises positive scores and lowers negative scores.'],
+    q3: ['outside', 'Correct — the squared-hinge penalty only activates once KL exceeds &delta;.']
+  };
+  const isCorrect = correct[id][0] === value;
+  el.innerHTML = isCorrect ? correct[id][1] : 'Not quite — try another option.';
+  el.className = 'quiz-answer show ' + (isCorrect ? 'correct' : 'incorrect');
+}
+</script>
+<script src="assets/deck_common.js"></script>
+</body>
+</html>

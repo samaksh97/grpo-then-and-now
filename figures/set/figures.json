@@ -1,0 +1,125 @@
+{
+  "about": "Curated figure set for 'GRPO, Then and Now'. Each card carries its own title, takeaway caption and source line. 'used_in' lists the deck slides and notebook sections that show the figure; 'alt' is the text alternative used wherever the image is embedded.",
+  "figures": [
+    {
+      "id": "F1",
+      "file": "F01_anatomy_of_one_grpo_step.png",
+      "title": "One GRPO step: sample a group, score it, compare within it",
+      "alt": "Flow diagram of one GRPO step: a prompt goes to the frozen policy, which samples a group of 8 rollouts (2 pass, 6 fail); a verifier scores them 1 or 0; the group-relative advantages are +1.73 for passes and -0.58 for fails; a clipped policy update makes passing rollouts more likely, and the updated policy samples the next batch.",
+      "sources": ["Shao et al., 2024 (GRPO)", "Lambert et al., 2024 (RLVR)"],
+      "used_in": ["slides/grpo_intro.html#grpo-step", "notebook/00_pg_ppo_refresher.ipynb §1.6", "notebook/01_grpo_core.ipynb §1"]
+    },
+    {
+      "id": "F2",
+      "file": "F02_ppo_rlhf_vs_grpo_rlvr.png",
+      "title": "Four model roles become two",
+      "alt": "Side-by-side model roles: PPO-based RLHF keeps four models (policy, reference, reward model, critic); GRPO with RLVR keeps two, replacing the reward model with a verifier program and the critic with the group's mean reward.",
+      "sources": ["Schulman et al., 2017 (PPO)", "Ouyang et al., 2022 (RLHF)", "Shao et al., 2024 (GRPO)", "Lambert et al., 2024 (RLVR)"],
+      "used_in": ["slides/grpo_intro.html#model-roles", "notebook/00_pg_ppo_refresher.ipynb §1.5"]
+    },
+    {
+      "id": "F3",
+      "file": "F03_group_relative_advantages.png",
+      "title": "The advantage is a z-score within the group, so it needs disagreement",
+      "alt": "Two bar charts of advantages for a group of 8 rollouts: with 2 passes, passes get +1.73 and fails -0.58, which sum to zero; with 8 passes, every advantage is 0 and the group adds no gradient.",
+      "sources": ["Shao et al., 2024 (GRPO)"],
+      "used_in": ["slides/grpo_intro.html#score-rollouts", "notebook/01_grpo_core.ipynb §3"]
+    },
+    {
+      "id": "F4",
+      "file": "F04_informative_groups_vs_p.png",
+      "title": "As a prompt gets mastered, most of its groups stop teaching",
+      "alt": "Curves of the probability that a group is informative, 1 - p^G - (1 - p)^G, against the per-response success probability p for group sizes G = 4 to 64; at p = 0.95 and G = 8 only 34% of groups are informative.",
+      "sources": ["Yu et al., 2025 (DAPO), Sec. 3.2 and Fig. 3b"],
+      "used_in": ["slides/grpo_intro.html#failure-zero-gradient", "slides/dapo_intro.html#dynamic-sampling", "notebook/02_failure_lab.ipynb §1"]
+    },
+    {
+      "id": "F5",
+      "file": "F05_clip_headroom.png",
+      "title": "The clip bounds the ratio, so rare tokens get the least room",
+      "alt": "Maximum probability gain before clipping against a token's old probability, for epsilon = 0.2 and DAPO's epsilon_high = 0.28: a token at p_old = 0.01 can gain only 0.002, a token at 0.5 can gain 0.10, and the gain peaks at p_old = 1/(1 + epsilon).",
+      "sources": ["Yu et al., 2025 (DAPO), Sec. 3.1"],
+      "used_in": ["slides/grpo_intro.html#failure-clip-headroom", "slides/dapo_intro.html#clip-higher", "notebook/02_failure_lab.ipynb §2"]
+    },
+    {
+      "id": "F6",
+      "file": "F06_per_token_weight_vs_length.png",
+      "title": "Averaging per response first makes short answers louder per token",
+      "alt": "Per-token weight against response length on log axes for a group of 8 in which seven responses have 200 tokens: GRPO's sample-level weight falls as one over the length, so a 20-token answer weighs 10 times more per token, while DAPO's token-level weight and Dr. GRPO's constant stay nearly flat.",
+      "sources": ["Yu et al., 2025 (DAPO), Sec. 3.3", "Liu et al., 2025 (Dr. GRPO), Sec. 3.1"],
+      "used_in": ["slides/grpo_intro.html#failure-length-weighting", "slides/dapo_intro.html#token-level-loss", "notebook/02_failure_lab.ipynb §3"]
+    },
+    {
+      "id": "F7",
+      "file": "F07_per_question_weight_vs_difficulty.png",
+      "title": "GRPO quietly favors questions the model gets half right",
+      "alt": "Per-question weight against question accuracy p: GRPO's square root of p(1 - p) peaks at 0.5 for p = 0.5 and vanishes at 0 and 1, Dr. GRPO's p(1 - p) peaks at 0.25, and DisCO's weight is a constant 1.",
+      "sources": ["Li et al., 2025 (DisCO)", "Liu et al., 2025 (Dr. GRPO)"],
+      "used_in": ["slides/disco_intro.html#difficulty-weight", "notebook/disco_three_fixes.ipynb §1", "notebook/02_failure_lab.ipynb Appendix D"]
+    },
+    {
+      "id": "F8",
+      "file": "F08_overlong_reward_shaping.png",
+      "title": "A graded length penalty warns before the hard cutoff",
+      "alt": "DAPO's length penalty against response length: zero up to 16,384 tokens, a linear ramp down to -1 across the 4,096-token cache window, and -1 beyond the 20,480-token maximum.",
+      "sources": ["Yu et al., 2025 (DAPO), Sec. 3.4, Eq. 13"],
+      "used_in": ["slides/dapo_intro.html#overlong-shaping", "notebook/dapo_four_fixes.ipynb §4", "notebook/02_failure_lab.ipynb §4"]
+    },
+    {
+      "id": "F9",
+      "file": "F09_dynamic_sampling_over_a_run.png",
+      "title": "Dynamic Sampling buys a full batch with extra generation",
+      "alt": "Toy training run of 60 steps: the prompts that contribute gradient under naive GRPO fall from 474 to 227 of 512 while Dynamic Sampling keeps all 512, and the rollouts generated per kept prompt rise from 1.08 to 2.26 times.",
+      "sources": ["Toy simulation in notebook/dapo_four_fixes.ipynb §2", "Yu et al., 2025 (DAPO), Sec. 3.2"],
+      "used_in": ["slides/dapo_intro.html#dynamic-sampling-cost", "notebook/dapo_four_fixes.ipynb §2"]
+    },
+    {
+      "id": "F10",
+      "file": "F10_the_clipped_objective.png",
+      "title": "Past the clip, the objective goes flat and the gradient is zero",
+      "alt": "PPO's clipped objective against the probability ratio r for a positive and a negative advantage: for A > 0 the objective is flat beyond 1 + epsilon (1.28 with Clip-Higher), and for A < 0 it is flat below 1 - epsilon, so the gradient there is zero.",
+      "sources": ["Schulman et al., 2017 (PPO), Fig. 1", "Yu et al., 2025 (DAPO), Sec. 3.1"],
+      "used_in": ["slides/grpo_intro.html#ppo-refresher", "notebook/00_pg_ppo_refresher.ipynb §1.4"]
+    },
+    {
+      "id": "F11",
+      "file": "F11_disco_hard_negatives.png",
+      "title": "A softmax over negatives aims the gradient at the dangerous one",
+      "alt": "DisCO's hard-negative weighting: the softmax weight on one high-scoring confuser among 100 negatives rises from 1% to 98.8% as the temperature falls to 0.1; with that weighting the confuser's score drops from 0.900 to 0.321 in 80 steps, compared with 0.898 under a plain average.",
+      "sources": ["Toy in notebook/disco_three_fixes.ipynb §3", "Li et al., 2025 (DisCO)"],
+      "used_in": ["slides/disco_intro.html#hard-negatives", "notebook/disco_three_fixes.ipynb §3"]
+    },
+    {
+      "id": "F12",
+      "file": "F12_s_grpo_serial_group.png",
+      "title": "One chain, five exits: earlier correct answers earn more",
+      "alt": "S-GRPO serial group: one chain of thought is cut at 20, 40, 60 and 80% and at its end; the answers wrong, correct, correct, correct, correct earn rewards 0, 1, 1/2, 1/4 and 1/8, giving advantages -0.375, +0.625, +0.125, -0.125 and -0.25 around the mean reward 0.375.",
+      "sources": ["Dai, Yang and Si, 2025 (S-GRPO), Sec. 2.2-2.3"],
+      "used_in": ["slides/sgrpo_intro.html#serial-group", "notebook/sgrpo_early_exit.ipynb"]
+    },
+    {
+      "id": "F13",
+      "file": "F13_design_space_map.png",
+      "title": "Each method edits a different part of the GRPO recipe",
+      "alt": "Table mapping each GRPO component (which groups enter the batch, clip bounds, what the clip does, ratio granularity, loss aggregation, advantage normalization, combining negatives, length in the reward, rollouts and reward shape, entropy control) to the failure it targets, the method taught in depth (DAPO, DisCO, S-GRPO) and later revisions on the map (DCPO, BAPO, CISPO, GSPO, Dr. GRPO, Clip-Cov and KL-Cov).",
+      "sources": ["Yu et al., 2025", "Li et al., 2025", "Dai et al., 2025", "Liu et al., 2025", "Zheng et al., 2025", "MiniMax, 2025", "Yang et al., 2025", "Xi et al., 2026", "Cui et al., 2025"],
+      "used_in": ["slides/grpo_intro.html#response-map", "README.md", "notebook/02_failure_lab.ipynb Appendix B"]
+    },
+    {
+      "id": "F14a",
+      "file": "F14a_dapo_ablation.png",
+      "title": "Each fix adds points; Dynamic Sampling adds the most",
+      "alt": "Bar chart of DAPO's cumulative ablation on AIME 2024 (avg@32, Qwen2.5-32B base): naive GRPO 30, plus overlong filtering 36, plus Clip-Higher 38, plus soft overlong punishment 41, plus token-level loss 42, plus Dynamic Sampling 50, against DeepSeek-R1-Zero-Qwen-32B at 47.",
+      "sources": ["Yu et al., 2025 (DAPO), Table 1"],
+      "used_in": ["slides/dapo_intro.html#results"]
+    },
+    {
+      "id": "F14b",
+      "file": "F14b_disco_and_s_grpo_results.png",
+      "title": "Changing the objective, and changing the rollout, both pay off",
+      "alt": "Reported results: average Pass@1 over six math benchmarks for GRPO versus the best DisCO variant (1.5B: 0.457 vs 0.533; 7B: 0.592 vs 0.627; Llama 8B: 0.516 vs 0.584), and S-GRPO's 40.4 to 61.1% shorter reasoning with an accuracy change of +0.72 to +3.92 points.",
+      "sources": ["Li et al., 2025 (DisCO), Tables 2-4", "Dai, Yang and Si, 2025 (S-GRPO), NeurIPS version abstract"],
+      "used_in": ["slides/disco_intro.html#results", "slides/sgrpo_intro.html#results"]
+    }
+  ]
+}

@@ -1,276 +1,279 @@
-"""
-Exercise Solutions for 'Breaking GRPO: An Interactive Failure Lab'
-NeurIPS 2026 Education Track Submission
-
-This file contains reference implementations, analytical derivations,
-and diagnostic solutions for Exercises 1 through 6.
-"""
+"""Seeded reference solutions for the six core GRPO Failure Lab exercises."""
 
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def softmax(logits):
-    x = logits - logits.max()
+    x = np.asarray(logits) - np.max(logits)
     e = np.exp(x)
     return e / e.sum()
 
+
 def entropy(probs):
-    p = probs[probs > 1e-10]
-    return -np.sum(p * np.log(p))
+    probs = np.asarray(probs)
+    probs = probs[probs > 1e-10]
+    return -np.sum(probs * np.log(probs))
 
 
-# ==============================================================================
-# Exercise 1: Compute Advantages by Hand (Analytical)
-# ==============================================================================
+class BanditVerifier:
+    """Notebook-compatible verifier API."""
+    def __init__(self, rewards, correct_action):
+        self.rewards = np.asarray(rewards, dtype=float)
+        self.correct = correct_action
+
+    def __call__(self, action):
+        return self.rewards[action]
+
+
+BANDIT_VERIFIER = BanditVerifier([0, 0, 0, 1, 0, 0, 0, 0], correct_action=3)
+
+
+def bandit_grpo_step(logits, verifier, group_size, lr):
+    """One update; p_correct is present even when the group has zero variance."""
+    probs = softmax(logits)
+    actions = np.random.choice(len(logits), size=group_size, p=probs)
+    rewards = np.array([verifier(a) for a in actions])
+    info = {
+        "reward_mean": rewards.mean(),
+        "entropy": entropy(probs),
+        "p_correct": probs[verifier.correct],
+        "generated_responses": group_size,
+    }
+    if rewards.std() < 1e-8:
+        return logits, {**info, "zero_grad": True, "grad_norm": 0.0}
+    advantages = (rewards - rewards.mean()) / rewards.std()
+    grad = np.zeros_like(logits)
+    for action, advantage in zip(actions, advantages):
+        one_hot = np.zeros_like(logits)
+        one_hot[action] = 1.0
+        grad += advantage * (one_hot - probs) / group_size
+    logits = logits + lr * grad
+    new_probs = softmax(logits)
+    return logits, {
+        **info,
+        "entropy": entropy(new_probs),
+        "p_correct": new_probs[verifier.correct],
+        "zero_grad": False,
+        "grad_norm": np.linalg.norm(grad),
+    }
+
+
+def bandit_grpo_step_dynamic(logits, verifier, group_size, lr, max_attempts=5):
+    """Finite-retry Dynamic Sampling with generated-response diagnostics."""
+    probs = softmax(logits)
+    for attempts in range(1, max_attempts + 1):
+        actions = np.random.choice(len(logits), size=group_size, p=probs)
+        rewards = np.array([verifier(a) for a in actions])
+        if rewards.std() > 1e-8:
+            break
+    info = {
+        "reward_mean": rewards.mean(),
+        "entropy": entropy(probs),
+        "p_correct": probs[verifier.correct],
+        "attempts": attempts,
+        "generated_responses": attempts * group_size,
+    }
+    if rewards.std() < 1e-8:
+        return logits, {**info, "zero_grad": True, "grad_norm": 0.0}
+    advantages = (rewards - rewards.mean()) / rewards.std()
+    grad = np.zeros_like(logits)
+    for action, advantage in zip(actions, advantages):
+        one_hot = np.zeros_like(logits)
+        one_hot[action] = 1.0
+        grad += advantage * (one_hot - probs) / group_size
+    logits = logits + lr * grad
+    new_probs = softmax(logits)
+    return logits, {
+        **info,
+        "entropy": entropy(new_probs),
+        "p_correct": new_probs[verifier.correct],
+        "zero_grad": False,
+        "grad_norm": np.linalg.norm(grad),
+    }
+
+
 def solve_exercise_1():
-    print("=" * 70)
-    print("EXERCISE 1 SOLUTION: Group-Relative Advantages by Hand")
-    print("=" * 70)
-    
     rewards = np.array([1, 0, 1, 1, 0, 0], dtype=float)
-    
-    # 1. Compute mean and standard deviation
-    mean_r = rewards.mean()        # 3/6 = 0.500
-    std_r = rewards.std()          # sqrt(0.25) = 0.500
-    
-    # 2. Compute group-relative advantage
-    advantages = (rewards - mean_r) / (std_r + 1e-8)
-    
-    print(f"Rewards:    {rewards.tolist()}")
-    print(f"Mean (μ):   {mean_r:.3f}")
-    print(f"Std (σ):    {std_r:.3f}")
-    print(f"Advantages: [{', '.join(f'{a:+.3f}' for a in advantages)}]")
-    print(f"Sum of advantages: {advantages.sum():.6f}")
-    print("\nTakeaway: Successful rollouts (r=1) get +1.000 advantage; failing ones (r=0) get -1.000.")
-    print("The baseline μ=0.500 centers the gradient exactly at zero sum.\n")
+    advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+    print("Exercise 1:", advantages, "sum=", advantages.sum())
     return advantages
 
 
-# ==============================================================================
-# Exercise 2: Find the Group-Size Sweet Spot
-# ==============================================================================
-def bandit_grpo_step(logits, correct_action, group_size, lr):
-    probs = softmax(logits)
-    actions = np.random.choice(len(logits), size=group_size, p=probs)
-    rewards = np.array([1.0 if a == correct_action else 0.0 for a in actions])
-    r_std = rewards.std()
-    if r_std < 1e-8:
-        return logits, True
-    advantages = (rewards - rewards.mean()) / r_std
-    grad = np.zeros_like(logits)
-    for a, adv in zip(actions, advantages):
-        one_hot = np.zeros_like(logits)
-        one_hot[a] = 1.0
-        grad += adv * (one_hot - probs)
-    grad /= group_size
-    logits = logits + lr * grad
-    return logits, False
-
 def solve_exercise_2():
-    print("=" * 70)
-    print("EXERCISE 2 SOLUTION: Group-Size Scaling Sweep")
-    print("=" * 70)
-    
+    """Full seeded sweep using the >=0.90 pre-update convention and requested plot."""
     group_sizes = [4, 8, 16, 32, 64]
-    n_actions = 8
-    correct_action = 3
-    lr = 0.5
-    n_steps = 300
-    
     results = {}
-    for G in group_sizes:
+    for group_size in group_sizes:
         np.random.seed(42)
-        logits = np.zeros(n_actions)
-        steps_to_90 = None
-        zero_grad_steps = 0
-        
-        for step in range(n_steps):
-            probs = softmax(logits)
-            if steps_to_90 is None and probs[correct_action] >= 0.90:
-                steps_to_90 = step
-            logits, was_zero = bandit_grpo_step(logits, correct_action, G, lr)
-            if was_zero:
-                zero_grad_steps += 1
-                
-        zero_frac = zero_grad_steps / n_steps
-        results[G] = {
-            'steps_to_90': steps_to_90 if steps_to_90 is not None else n_steps,
-            'zero_grad_frac': zero_frac
+        logits = np.zeros(8)
+        reached = None
+        zero_count = 0
+        for step in range(300):
+            if reached is None and softmax(logits)[BANDIT_VERIFIER.correct] >= 0.90:
+                reached = step
+            logits, info = bandit_grpo_step(logits, BANDIT_VERIFIER, group_size, 0.5)
+            zero_count += info["zero_grad"]
+        results[group_size] = {
+            "steps_to_90": reached,
+            "zero_grad_fraction": zero_count / 300,
+            "generated_responses": 300 * group_size,
         }
-        print(f"Group Size G={G:2d}: Steps to 90% = {results[G]['steps_to_90']:3d} | Zero-Grad Fraction = {zero_frac:.1%}")
-        
-    print("\nTakeaway: G=4 has high zero-gradient rate (~45%) and slow convergence.")
-    print("G=16 to G=32 strikes the optimal balance between sample efficiency and gradient variance.")
-    print("Increasing to G=64 yields diminishing returns while using 4x more sampling compute.\n")
+
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.5))
+    axes[0].plot(group_sizes, [results[g]["steps_to_90"] if results[g]["steps_to_90"] is not None else 300 for g in group_sizes], "o-")
+    axes[0].set(title=r"First step with $P(correct)\geq0.90$", xlabel="G", ylabel="Step")
+    axes[1].plot(group_sizes, [results[g]["zero_grad_fraction"] for g in group_sizes], "o-", color="tab:red")
+    axes[1].set(title="Zero-gradient fraction", xlabel="G", ylabel="Fraction")
+    plt.tight_layout()
+    plt.close(fig)
+    print("Exercise 2:", results)
     return results
 
 
-# ==============================================================================
-# Exercise 3: Implement Dynamic Sampling
-# ==============================================================================
-def bandit_grpo_step_dynamic(logits, correct_action, group_size, lr, max_attempts=5):
-    """Bandit-GRPO step with DAPO Dynamic Sampling."""
-    probs = softmax(logits)
-    attempts = 0
-    actions = None
-    rewards = None
-    
-    # Resample until we find a group with reward variance
-    for _ in range(max_attempts):
-        attempts += 1
-        actions = np.random.choice(len(logits), size=group_size, p=probs)
-        rewards = np.array([1.0 if a == correct_action else 0.0 for a in actions])
-        if rewards.std() > 1e-8:
-            break
-            
-    r_std = rewards.std()
-    if r_std < 1e-8:
-        return logits, {'zero_grad': True, 'attempts': attempts}
-        
-    advantages = (rewards - rewards.mean()) / r_std
-    grad = np.zeros_like(logits)
-    for a, adv in zip(actions, advantages):
-        one_hot = np.zeros_like(logits)
-        one_hot[a] = 1.0
-        grad += adv * (one_hot - probs)
-    grad /= group_size
-    logits = logits + lr * grad
-    
-    return logits, {'zero_grad': False, 'attempts': attempts, 'p_correct': softmax(logits)[correct_action]}
-
 def solve_exercise_3():
-    print("=" * 70)
-    print("EXERCISE 3 SOLUTION: Dynamic Sampling Implementation")
-    print("=" * 70)
-    
-    np.random.seed(42)
-    logits = np.zeros(8)
-    correct_action = 3
-    
-    # Run 50 steps with Dynamic Sampling
-    zero_count = 0
-    total_attempts = 0
-    for _ in range(50):
-        logits, info = bandit_grpo_step_dynamic(logits, correct_action, group_size=8, lr=0.5)
-        total_attempts += info['attempts']
-        if info['zero_grad']:
-            zero_count += 1
-            
-    print(f"Dynamic Sampling: Zero-gradient steps = {zero_count}/50 ({zero_count/50:.1%})")
-    print(f"Average sampling attempts per step: {total_attempts/50:.2f}")
-    print(f"Final target probability: {softmax(logits)[correct_action]:.4f}")
-    print("\nTakeaway: Dynamic Sampling successfully rejects uninformative groups, ensuring")
-    print("every parameter update step receives valid learning signal.\n")
+    """Matched requested-update comparison, including generation cost."""
+    results = {}
+    for name, step_fn in [("vanilla", bandit_grpo_step), ("dynamic", bandit_grpo_step_dynamic)]:
+        np.random.seed(123)
+        logits = np.zeros(8)
+        zero_count = generated = 0
+        for _ in range(100):
+            logits, info = step_fn(logits, BANDIT_VERIFIER, 8, 0.5)
+            zero_count += info["zero_grad"]
+            generated += info["generated_responses"]
+        results[name] = {
+            "p_correct": softmax(logits)[BANDIT_VERIFIER.correct],
+            "zero_updates": zero_count,
+            "generated_responses": generated,
+        }
+    assert results["dynamic"]["generated_responses"] >= results["vanilla"]["generated_responses"]
+    print("Exercise 3:", results)
+    print("Finite retries reduce, but do not guarantee elimination of, zero-gradient updates.")
+    return results
 
 
-# ==============================================================================
-# Exercise 4: Implement Clip-Higher (Asymmetric Clipping)
-# ==============================================================================
+def fixed_rollout_clip_toy(eps_low, eps_high, epochs=30, lr=0.8):
+    """Actual clipped-surrogate updates against one frozen behavior rollout."""
+    old_logits = np.array([2.0, -1.0, -2.0, -2.0])
+    old_probs = softmax(old_logits)
+    actions = np.array([0, 0, 0, 0, 0, 1, 2, 3])
+    rewards = np.array([1, 1, 1, 1, 1, 1, 0, 0], dtype=float)
+    advantages = (rewards - rewards.mean()) / rewards.std()
+    logits = old_logits.copy()
+    history = []
+    for _ in range(epochs):
+        probs = softmax(logits)
+        ratios = probs[actions] / old_probs[actions]
+        grad = np.zeros_like(logits)
+        clipped = []
+        for action, advantage, ratio in zip(actions, advantages, ratios):
+            active = ((advantage >= 0 and ratio <= 1 + eps_high) or
+                      (advantage < 0 and ratio >= 1 - eps_low))
+            clipped.append(not active)
+            if active:
+                one_hot = np.zeros_like(logits)
+                one_hot[action] = 1.0
+                grad += advantage * ratio * (one_hot - probs) / len(actions)
+        history.append({"ratios": ratios.copy(), "entropy": entropy(probs),
+                        "clip_fraction": np.mean(clipped), "probs": probs.copy()})
+        logits += lr * grad
+    return history
+
+
 def solve_exercise_4():
-    print("=" * 70)
-    print("EXERCISE 4 SOLUTION: Clip-Higher Configuration Comparison")
-    print("=" * 70)
-    
-    configs = [
-        ('Symmetric Standard', 0.20, 0.20),
-        ('DAPO Clip-Higher',   0.20, 0.28),
-        ('Aggressive High',    0.20, 0.50),
-    ]
-    
-    for name, eps_l, eps_h in configs:
-        p_exploit = 0.85
-        p_explore = 0.01
-        new_exploit = min(p_exploit * (1 + eps_h), 1.0)
-        new_explore = min(p_explore * (1 + eps_h), 1.0)
-        
-        inc_exploit = new_exploit - p_exploit
-        inc_explore = new_explore - p_explore
-        ratio_growth = inc_explore / (0.01 * 0.20)
-        
-        print(f"Config: {name:<20} [1-{eps_l:.2f}, 1+{eps_h:.2f}]")
-        print(f"  Exploitation token (p=0.85): max increase = +{inc_exploit:.4f}")
-        print(f"  Exploration token  (p=0.01): max increase = +{inc_explore:.4f} ({ratio_growth:.2f}x vs symmetric)")
-    print("\nTakeaway: Decoupling eps_high allows exploration tokens to grow significantly faster")
-    print("without destabilizing probability suppression on bad tokens (governed by eps_low).\n")
+    configs = [("symmetric", 0.20, 0.20), ("DAPO", 0.20, 0.28), ("wide_toy", 0.20, 0.50)]
+    results = {}
+    for name, low, high in configs:
+        history = fixed_rollout_clip_toy(low, high)
+        results[name] = {
+            "max_ratio": max(np.max(h["ratios"]) for h in history),
+            "mean_clip_fraction": np.mean([h["clip_fraction"] for h in history]),
+            "final_rare_probability": history[-1]["probs"][1],
+        }
+    assert all(np.allclose(fixed_rollout_clip_toy(lo, hi)[0]["ratios"], 1.0)
+               for _, lo, hi in configs)
+    print("Exercise 4:", results)
+    return results
 
 
-# ==============================================================================
-# Exercise 5: Design a Reward-Hacking Verifier and Defense
-# ==============================================================================
-class VulnerableVerifier:
-    """Flawed verifier: checks output length but misses numerical accuracy."""
-    def __init__(self, target):
-        self.target = np.array(target)
-    def __call__(self, seq):
-        if np.array_equal(seq, self.target):
-            return 1.0
-        elif len(seq) == len(self.target) and seq[-1] == self.target[-1]:
-            return 0.85  # Vulnerability: rewards matching the last token only!
+END = 9
+CANDIDATES = [[], [0, 0, END], [2, 1, END], [1, 1, END], [2, 2, END]]
+
+
+def vulnerable_verifier(sequence):
+    return float(bool(sequence) and sequence[-1] == END)
+
+
+def robust_verifier(sequence, target_value=3):
+    """Interpret valid operations and test behavior rather than exact text."""
+    if not sequence or sequence[-1] != END:
         return 0.0
+    value = 1
+    for operation in sequence[:-1]:
+        if operation == 1:
+            value += 1
+        elif operation == 2:
+            value *= 2
+        else:
+            return 0.0
+    return float(value == target_value)
 
-class RobustVerifier:
-    """Defended verifier: enforces strict numerical parity and syntax verification."""
-    def __init__(self, target):
-        self.target = np.array(target)
-    def __call__(self, seq):
-        # Strict full-chain match required
-        return 1.0 if np.array_equal(seq, self.target) else 0.0
+
+def train_candidate_policy(verifier, seed=7, steps=120):
+    np.random.seed(seed)
+    logits = np.zeros(len(CANDIDATES))
+    trace = []
+    for _ in range(steps):
+        probs = softmax(logits)
+        actions = np.random.choice(len(logits), 8, p=probs)
+        rewards = np.array([verifier(CANDIDATES[a]) for a in actions])
+        if rewards.std() > 1e-8:
+            advantages = (rewards - rewards.mean()) / rewards.std()
+            grad = np.zeros_like(logits)
+            for action, advantage in zip(actions, advantages):
+                one_hot = np.zeros_like(logits)
+                one_hot[action] = 1.0
+                grad += advantage * (one_hot - probs) / len(actions)
+            logits += 0.25 * grad
+        trace.append(softmax(logits).copy())
+    return np.asarray(trace)
+
 
 def solve_exercise_5():
-    print("=" * 70)
-    print("EXERCISE 5 SOLUTION: Reward Hacking Verifier & Defense")
-    print("=" * 70)
-    
-    target = [2, 0, 4, 1]
-    vulnerable = VulnerableVerifier(target)
-    robust = RobustVerifier(target)
-    
-    hacked_seq = np.array([0, 0, 0, 1])  # Garbage steps, matching only last token
-    
-    print(f"Target sequence:   {target}")
-    print(f"Hacked candidate:  {hacked_seq.tolist()}")
-    print(f"Vulnerable Verifier Reward: {vulnerable(hacked_seq):.2f} <-- EXPLOITED!")
-    print(f"Robust Verifier Reward:     {robust(hacked_seq):.2f} <-- DEFENDED (Correctly rejected)")
-    print("\nTakeaway: Verifier vulnerabilities create false learning signals that derail training.")
-    print("Defenses require strict property verification, randomized test suites, and adversarial inputs.\n")
+    vulnerable_trace = train_candidate_policy(vulnerable_verifier)
+    robust_trace = train_candidate_policy(robust_verifier)
+    assert robust_verifier([]) == 0.0
+    assert robust_verifier([0, 0, END]) == 0.0
+    assert robust_verifier([2, 1, END]) == robust_verifier([1, 1, END]) == 1.0
+    results = {
+        "exploit_initial_probability": 1 / len(CANDIDATES),
+        "exploit_final_vulnerable": vulnerable_trace[-1, 1],
+        "exploit_final_robust": robust_trace[-1, 1],
+    }
+    print("Exercise 5 (finite-candidate toy):", results)
+    return results
 
 
-# ==============================================================================
-# Exercise 6: Diagnostic - Match Failure to Fix
-# ==============================================================================
+CANONICAL_SCENARIOS = [
+    ("All rewards in most groups are identical on a hard task.",
+     "Zero-gradient groups", "Dynamic Sampling; finite retries reduce failures at extra response cost"),
+    ("Fixed-rollout positive-advantage ratios repeatedly hit the upper clip bound.",
+     "Clipping-constrained exploration", "DAPO Clip-Higher"),
+    ("Correct responses vary from 8 to 200 tokens under sample-level normalization.",
+     "Variable-length weighting", "DAPO token-level normalization"),
+    ("Responses enter the cache region or hit the truncation boundary.",
+     "Overlong behavior", "Additive soft penalty; separately consider overlong filtering"),
+    ("Perfect training reward hides failure on randomized held-out tests.",
+     "Reward hacking", "Behavior/property-based adversarial verifier tests"),
+]
+
+
 def solve_exercise_6():
-    print("=" * 70)
-    print("EXERCISE 6 SOLUTION: Diagnostic Mapping")
-    print("=" * 70)
-    
-    diagnostics = [
-        {
-            "symptom": "Training loss stopped decreasing, eval accuracy is only 40%, and all rollouts in a group generate the same string.",
-            "diagnosis": "Entropy collapse caused by symmetric ratio clipping trapping the model in a suboptimal local mode.",
-            "fix": "DAPO Clip-Higher (decouple eps_high > eps_low) to allow exploratory tokens to grow."
-        },
-        {
-            "symptom": "90% of gradient steps have zero loss and zero gradient norm early in training on a hard problem set.",
-            "diagnosis": "Zero-gradient groups caused by extreme task difficulty where all sampled rollouts fail (sigma=0).",
-            "fix": "DAPO Dynamic Sampling (filter out zero-variance groups and resample until informative)."
-        },
-        {
-            "symptom": "Model generates correct answers but increasingly omits step-by-step reasoning, producing very short responses.",
-            "diagnosis": "Length bias caused by sample-level loss averaging (1/|o_i|) penalizing long responses.",
-            "fix": "DAPO Token-Level Policy Gradient Loss (aggregate loss across all batch tokens equally)."
-        },
-        {
-            "symptom": "Model achieves 100% training reward on code generation but fails all unit tests on out-of-distribution inputs.",
-            "diagnosis": "Reward hacking via an incomplete/vulnerable verification test harness.",
-            "fix": "Adversarial unit test expansion and randomized property-based testing (outside algorithmic RL fixes)."
-        }
-    ]
-    
-    for i, d in enumerate(diagnostics, 1):
-        print(f"Scenario {i}:")
-        print(f"  Symptom:   {d['symptom']}")
-        print(f"  Diagnosis: {d['diagnosis']}")
-        print(f"  Fix:       {d['fix']}\n")
+    print("Exercise 6:")
+    for index, (symptom, diagnosis, response) in enumerate(CANONICAL_SCENARIOS, 1):
+        print(f"  {index}. {symptom}\n     {diagnosis} -> {response}")
+    return CANONICAL_SCENARIOS
 
 
 if __name__ == "__main__":
